@@ -10,7 +10,8 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "eslint --ext .ts,.tsx ."
+    "lint": "eslint --ext .ts,.tsx .",
+    "build:css": "tailwindcss -i src/index.css -o ./output.css"
   },
   "keywords": [],
   "author": {
@@ -36,6 +37,7 @@
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "@vitejs/plugin-react": "^5.0.2",
+    "daisyui": "^5.5.19",
     "electron": "41.2.0",
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.32.0",
@@ -51,6 +53,7 @@
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.1",
     "tailwindcss": "^4.2.2",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "zustand": "^5.0.12"
   }
 }

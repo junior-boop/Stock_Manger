@@ -288,3 +288,17 @@ export function FluentReceiptMoney24Regular(props: SVGProps<SVGSVGElement>) {
         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>{/* Icon from Fluent UI System Icons by Microsoft Corporation - https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE */}<path fill="currentColor" d="M4 5.25A2.25 2.25 0 0 1 6.25 3h9.5A2.25 2.25 0 0 1 18 5.25V14h4v3.75A3.25 3.25 0 0 1 18.75 21h-5.8q.05-.243.05-.5v-1h3.5V5.25a.75.75 0 0 0-.75-.75h-9.5a.75.75 0 0 0-.75.75V14H4zM18 19.5h.75a1.75 1.75 0 0 0 1.75-1.75V15.5H18zM8.25 7a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5zm-.75 4.75a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75M2.5 15A1.5 1.5 0 0 0 1 16.5v4A1.5 1.5 0 0 0 2.5 22h8a1.5 1.5 0 0 0 1.5-1.5v-4a1.5 1.5 0 0 0-1.5-1.5zm7.5 1a1 1 0 0 0 1 1v1a2 2 0 0 1-2-2zm-1 5a2 2 0 0 1 2-2v1a1 1 0 0 0-1 1zm-7-4a1 1 0 0 0 1-1h1a2 2 0 0 1-2 2zm0 2a2 2 0 0 1 2 2H3a1 1 0 0 0-1-1zm4.5-2.25a1.75 1.75 0 1 1 0 3.5a1.75 1.75 0 0 1 0-3.5" /></svg>
     )
 }
+
+
+export function FluentClipboardDataBar32Filled(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 32 32" {...props}>{/* Icon from Fluent UI System Icons by Microsoft Corporation - https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE */}<path fill="currentColor" d="M23.5 4h-1.67A3 3 0 0 0 19 2h-6a3 3 0 0 0-2.83 2H8.5A3.5 3.5 0 0 0 5 7.5v19A3.5 3.5 0 0 0 8.5 30h15a3.5 3.5 0 0 0 3.5-3.5v-19A3.5 3.5 0 0 0 23.5 4M13 4h6a1 1 0 1 1 0 2h-6a1 1 0 1 1 0-2m-2.5 8a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-3 0v-9a1.5 1.5 0 0 1 1.5-1.5m4 3.5a1.5 1.5 0 0 1 3 0v7a1.5 1.5 0 0 1-3 0zm7 2.5a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-3 0v-3a1.5 1.5 0 0 1 1.5-1.5" /></svg>
+    )
+}
+
+
+export function FluentClipboardDataBar32Regular(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 32 32" {...props}>{/* Icon from Fluent UI System Icons by Microsoft Corporation - https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE */}<path fill="currentColor" d="M10.5 12A1.5 1.5 0 0 0 9 13.5v9a1.5 1.5 0 0 0 3 0v-9a1.5 1.5 0 0 0-1.5-1.5m4 3.5a1.5 1.5 0 0 1 3 0v7a1.5 1.5 0 0 1-3 0zm7 2.5a1.5 1.5 0 0 0-1.5 1.5v3a1.5 1.5 0 0 0 3 0v-3a1.5 1.5 0 0 0-1.5-1.5M19 2c1.306 0 2.418.835 2.83 2h1.67A3.5 3.5 0 0 1 27 7.5v19a3.5 3.5 0 0 1-3.5 3.5h-15A3.5 3.5 0 0 1 5 26.5v-19A3.5 3.5 0 0 1 8.5 4h1.67A3 3 0 0 1 13 2zm-6 2a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2zM8.5 6A1.5 1.5 0 0 0 7 7.5v19A1.5 1.5 0 0 0 8.5 28h15a1.5 1.5 0 0 0 1.5-1.5v-19A1.5 1.5 0 0 0 23.5 6h-1.67A3 3 0 0 1 19 8h-6a3 3 0 0 1-2.83-2z" /></svg>
+    )
+}

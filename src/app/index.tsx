@@ -2,7 +2,7 @@ import Screen from '../layouts/screen';
 // import './App.css'
 
 import { HashRouter, Route, Routes } from 'react-router-dom'
-
+import ProductLayouts from '../layouts/product_layouts';
 
 
 
@@ -37,8 +37,10 @@ const Router = () => {
         <Routes>
             <Route element={<Screen />}>
                 <Route path="/" element={<div>Accueil</div>} />
-                {/* <Route path="/todos" element={<NotesPages />} />
-          <Route path="/archives" element={<ArchivePages />} />
+                <Route path="/produits" element={<ProductLayouts />} >
+                    <Route path="/produits/collections/:id" element={<div>Collection</div>} />
+                </Route>
+                {/* <Route path="/archives" element={<ArchivePages />} />
           <Route path="/groupes" element={<GroupeLayouts />}>
             <Route path="/groupes/dossier/:id" element={<DossierPage />} />
           </Route>

@@ -1,4 +1,5 @@
 import './index.css'
+import "../output.css"
 import { StrictMode, useCallback, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './app';

@@ -94,7 +94,6 @@ export interface Collection {
   id          : ID
   nom         : string
   description?: string
-  image      ?: URLString
   ordre      ?: number             // Pour le tri dans l'UI
   statut      : StatutActif
   createdAt   : ISODateString
