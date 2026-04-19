@@ -229,6 +229,7 @@ const Collections = db.createModel<Collection>("collections", {
   description: "TEXT",
   ordre: "INTEGER",
   statut: "TEXT NOT NULL",
+  quantite : "INTEGER NULL DEFAULT 0",
   createdAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
   updatedAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
 });
@@ -264,7 +265,8 @@ export function createCollection(data: Omit<Collection, "id" | "createdAt" | "up
       nom: data.nom,
       description: data.description,
       ordre: data.ordre,
-      statut: data.statut,
+      statut: data.statut || 'actif',
+      quantite : 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -823,6 +825,7 @@ export async function initializeTables() {
     await createDevisTable();
     await createFacturesTable();
     await createLignesDocumentsTable();
+    await createAdministrateursTable();
     return true;
   } catch (e) {
     console.error("Erreur lors de l'initialisation des tables:", e);

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, ipcMain } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
 import {
   checkDatabase,
@@ -131,6 +132,74 @@ ipcMain.handle('lignes-documents:getByArticleId', async (event, articleId) => ge
 ipcMain.handle('lignes-documents:create', async (event, data) => createLigneDocument(data));
 ipcMain.handle('lignes-documents:update', async (event, id, data) => updateLigneDocument(id, data));
 ipcMain.handle('lignes-documents:delete', async (event, id) => deleteLigneDocument(id));
+
+// ======================== IPC HANDLER - IMAGES ========================
+const imagesDir = path.join(app.getPath('pictures'), "..", 'images');
+
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true });
+}
+
+ipcMain.handle('images:save', async (event, base64Data: string, filename: string) => {
+  try {
+    const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Image, 'base64');
+    const filePath = path.join(imagesDir, filename);
+    fs.writeFileSync(filePath, buffer);
+    return filePath;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de l\'image:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('images:getPath', async () => {
+  return imagesDir;
+});
+
+ipcMain.handle('images:get', async (event, filename: string) => {
+  try {
+    const filePath = path.join(filename);
+    console.log('filePath:', imagesDir)
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      const data = fs.readFileSync(filePath);
+      const ext = path.extname(filename).slice(1);
+      const mimeType = ext === 'jpg' ? 'jpeg' : ext;
+      return `data:image/${mimeType};base64,${data.toString('base64')}`;
+    }
+    return null;
+  } catch (error) {
+    console.error('Erreur lors de la lecture de l\'image:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('images:list', async () => {
+  try {
+    const files = fs.readdirSync(imagesDir);
+    return files;
+  } catch (error) {
+    console.error('Erreur lors de la liste des images:', error);
+    return [];
+  }
+});
+
+// ======================== IPC HANDLER - REFERENCE AUTOINCREMENT ========================
+ipcMain.handle('articles:generateReference', async (event, collectionId: string) => {
+  try {
+    const collections = await getCollectionById(collectionId);
+    if (!collections) return null;
+    const prefix = collections.nom.substring(0, 3).toUpperCase();
+    const articles = getAllArticles();
+    const collectionArticles = (await articles).filter(a => a.collectionId === collectionId);
+    const nextNumber = collectionArticles.length + 1;
+    const reference = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+    return reference;
+  } catch (error) {
+    console.error('Erreur lors de la génération de la référence:', error);
+    throw error;
+  }
+});
 
 const createWindow = () => {
   // Create the browser window.

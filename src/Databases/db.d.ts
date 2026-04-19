@@ -96,6 +96,7 @@ export interface Collection {
   description?: string
   ordre      ?: number             // Pour le tri dans l'UI
   statut      : StatutActif
+  quantite    : number
   createdAt   : ISODateString
   updatedAt   : ISODateString
 }

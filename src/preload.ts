@@ -1,16 +1,9 @@
 // See the Electron documentation for details on how to use preload scripts:
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
+
 import { contextBridge, ipcRenderer } from 'electron';
 
-// ======================== ARTICLES ========================
-const articlesApi = {
-  getById: (id: string) => ipcRenderer.invoke('articles:getById', id),
-  getAll: () => ipcRenderer.invoke('articles:getAll'),
-  create: (data: any) => ipcRenderer.invoke('articles:create', data),
-  update: (id: string, data: any) => ipcRenderer.invoke('articles:update', id, data),
-  delete: (id: string) => ipcRenderer.invoke('articles:delete', id),
-};
 
 // ======================== CLIENTS ========================
 const clientsApi = {
@@ -79,6 +72,24 @@ const lignesDocumentsApi = {
   delete: (id: string) => ipcRenderer.invoke('lignes-documents:delete', id),
 };
 
+// ======================== IMAGES ========================
+const imagesApi = {
+  save: (base64Data: string, filename: string) => ipcRenderer.invoke('images:save', base64Data, filename),
+  getPath: () => ipcRenderer.invoke('images:getPath'),
+  get: (filename: string) => ipcRenderer.invoke('images:get', filename),
+  list: () => ipcRenderer.invoke('images:list'),
+};
+
+// ======================== ARTICLES ========================
+const articlesApi = {
+  getById: (id: string) => ipcRenderer.invoke('articles:getById', id),
+  getAll: () => ipcRenderer.invoke('articles:getAll'),
+  create: (data: any) => ipcRenderer.invoke('articles:create', data),
+  update: (id: string, data: any) => ipcRenderer.invoke('articles:update', id, data),
+  delete: (id: string) => ipcRenderer.invoke('articles:delete', id),
+  generateReference: (collectionId: string) => ipcRenderer.invoke('articles:generateReference', collectionId),
+};
+
 // ======================== EXPOSE APIs VIA CONTEXT BRIDGE ========================
 contextBridge.exposeInMainWorld('db', {
   articles: articlesApi,
@@ -89,4 +100,5 @@ contextBridge.exposeInMainWorld('db', {
   devis: devisApi,
   factures: facturesApi,
   lignesDocuments: lignesDocumentsApi,
+  images: imagesApi,
 });

@@ -69,6 +69,8 @@ interface DatabaseContextType {
     createLigneDocument: (data: Partial<LigneDocument>) => Promise<LigneDocument | undefined>;
     updateLigneDocument: (id: string, data: Partial<LigneDocument>) => Promise<void>;
     deleteLigneDocument: (id: string) => Promise<void>;
+    loadImage: (filename: string) => Promise<string | null>;
+    loadImagesForArticle: (imagePaths: string[]) => Promise<string[]>;
     clearError: () => void;
 }
 
@@ -459,6 +461,26 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [refreshLignesDocuments]);
 
+    const loadImage = useCallback(async (filename: string): Promise<string | null> => {
+
+        try {
+            return await window.db.images.get(filename);
+        } catch (error) {
+            console.error('Erreur lors du chargement de l\'image:', error);
+            return null;
+        }
+    }, []);
+
+    const loadImagesForArticle = useCallback(async (imagePaths: string[]): Promise<string[]> => {
+        const results: string[] = [];
+        for (const path of imagePaths) {
+            const filename = path.split(/[/\\]/).pop() || path;
+            const imageData = await loadImage(filename);
+            if (imageData) results.push(imageData);
+        }
+        return results;
+    }, [loadImage]);
+
     useEffect(() => {
         refreshAll();
     }, [refreshAll]);
@@ -508,6 +530,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         createLigneDocument,
         updateLigneDocument,
         deleteLigneDocument,
+        loadImage,
+        loadImagesForArticle,
         clearError
     }), [
         articles,
@@ -554,6 +578,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         createLigneDocument,
         updateLigneDocument,
         deleteLigneDocument,
+        loadImage,
+        loadImagesForArticle,
         clearError
     ]);
 

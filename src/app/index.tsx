@@ -3,6 +3,7 @@ import Screen from '../layouts/screen';
 
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import ProductLayouts from '../layouts/product_layouts';
+import ProductPage from '../pages/produits';
 
 
 
@@ -38,7 +39,10 @@ const Router = () => {
             <Route element={<Screen />}>
                 <Route path="/" element={<div>Accueil</div>} />
                 <Route path="/produits" element={<ProductLayouts />} >
-                    <Route path="/produits/collections/:id" element={<div>Collection</div>} />
+                    <Route path="/produits/collections/:id" element={<ProductPage />}>
+                        <Route path="/produits/collections/:id?sous_collection=:sousId" element={<ProductPage />} />
+                    </Route>
+                    <Route path="/produits/:productId" element={<ProductPage />} />
                 </Route>
                 {/* <Route path="/archives" element={<ArchivePages />} />
           <Route path="/groupes" element={<GroupeLayouts />}>
