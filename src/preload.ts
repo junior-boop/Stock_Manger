@@ -90,6 +90,24 @@ const articlesApi = {
   generateReference: (collectionId: string) => ipcRenderer.invoke('articles:generateReference', collectionId),
 };
 
+// ======================== AUTH ========================
+const authApi = {
+  isSetupDone: () => ipcRenderer.invoke('auth:isSetupDone'),
+  setup: (data: {
+    nom: string;
+    prenom: string;
+    email: string;
+    telephone?: string;
+    motDePasse: string;
+  }) => ipcRenderer.invoke('auth:setup', data),
+  login: (email: string, motDePasse: string) =>
+    ipcRenderer.invoke('auth:login', email, motDePasse),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  me: () => ipcRenderer.invoke('auth:me'),
+  hasPermission: (action: string) =>
+    ipcRenderer.invoke('auth:hasPermission', action),
+};
+
 // ======================== EXPOSE APIs VIA CONTEXT BRIDGE ========================
 contextBridge.exposeInMainWorld('db', {
   articles: articlesApi,
@@ -102,3 +120,33 @@ contextBridge.exposeInMainWorld('db', {
   lignesDocuments: lignesDocumentsApi,
   images: imagesApi,
 });
+
+contextBridge.exposeInMainWorld('auth', authApi);
+
+// ======================== PDF & SHELL ========================
+const pdfApi = {
+  generateDevis: (html: string, filename: string): Promise<string> =>
+    ipcRenderer.invoke('pdf:generateDevis', html, filename),
+};
+const shellApi = {
+  openPath: (p: string): Promise<string> => ipcRenderer.invoke('shell:openPath', p),
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
+  showItemInFolder: (p: string): Promise<void> => ipcRenderer.invoke('shell:showItemInFolder', p),
+};
+contextBridge.exposeInMainWorld('pdf', pdfApi);
+contextBridge.exposeInMainWorld('shell', shellApi);
+
+// ======================== WINDOW CONTROLS ========================
+const windowApi = {
+  minimize: () => ipcRenderer.invoke('window:minimize'),
+  maximize: () => ipcRenderer.invoke('window:maximize'),
+  close: () => ipcRenderer.invoke('window:close'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onMaximizedChange: (cb: (maximized: boolean) => void) => {
+    const listener = (_event: unknown, value: boolean) => cb(value);
+    ipcRenderer.on('window:maximized', listener);
+    return () => ipcRenderer.removeListener('window:maximized', listener);
+  },
+};
+
+contextBridge.exposeInMainWorld('win', windowApi);

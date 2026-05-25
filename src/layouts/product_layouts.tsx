@@ -9,6 +9,7 @@ import { create } from 'zustand'
 import { Collection } from "../Databases/db.d";
 import { openNewProductWindow } from "../context/open_product";
 import NewProduct from "../pages/new_product";
+import { useAlerts } from "../components/alerts";
 
 type OpenLayout = {
     get: boolean
@@ -38,22 +39,25 @@ export default function ProductLayouts() {
     })
 
     const { createCollection } = useDatabase()
+    const { error: notifyError, success } = useAlerts()
 
 
     useEffect(() => {
-        const checkDossier = location.pathname.includes('/collection')
-        if (checkDossier) setIsHome(false)
+        const path = location.pathname;
+        const checkCollection = path.includes('/collection');
+        const checkArticle = path.includes('/article');
+        if (checkCollection || checkArticle) setIsHome(false)
         else setIsHome(true)
     }, [location])
 
     const handleCreateCollection = async () => {
         if (!collection.nom) {
-            alert("Le nom de la collection est requis.")
+            notifyError("Nom requis", "Le nom de la collection est requis.")
             return
         }
 
         if (!collection.description) {
-            alert("La description de la collection est requise.")
+            notifyError("Description requise", "La description de la collection est requise.")
             return
         }
 
@@ -67,6 +71,7 @@ export default function ProductLayouts() {
 
             setTimeout(() => {
                 setLoading(false)
+                success("Collection créée", collection.nom as string)
                 setCollection({
                     nom: null,
                     order: 0,
@@ -267,7 +272,7 @@ const Items = ({ data, onClick }: { onClick: () => void, data: Partial<Collectio
                     sous_collection.map(el => (<NavLink to={{
                         pathname: `/products/collections/${data.id}`,
                         search: `?sous_collection=${el.id}`
-                    }} className="hover:bg-gray-50 px-4 py-2 flex items-center justify-between text-sm">
+                    }} className="hover: px-4 py-2 flex items-center justify-between text-sm" key={el.id}>
                         <span>{el.nom}</span> <span>
                             <FluentChevronRight32Filled className="h-4 w-4" />
                         </span>

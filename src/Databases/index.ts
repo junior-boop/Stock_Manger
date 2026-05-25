@@ -482,6 +482,7 @@ const Devis = db.createModel<Devis>("devis", {
   numero: "TEXT NOT NULL UNIQUE",
   clientId: "TEXT NOT NULL",
   lignes: "TEXT NOT NULL",
+  groupes: "TEXT",
   totalHT: "INTEGER NOT NULL",
   totalTVA: "INTEGER NOT NULL",
   totalTTC: "INTEGER NOT NULL",
@@ -501,12 +502,26 @@ const Devis = db.createModel<Devis>("devis", {
 
 const createDevisTable = async () => {
   await Devis.createTable();
+  try {
+    orm.run("ALTER TABLE devis ADD COLUMN groupes TEXT");
+  } catch {
+    // Colonne déjà présente
+  }
 };
+
+function parseDevis(row: any): Devis | null {
+  if (!row) return row;
+  return {
+    ...row,
+    lignes: typeof row.lignes === "string" ? JSON.parse(row.lignes || "[]") : (row.lignes ?? []),
+    groupes: typeof row.groupes === "string" ? JSON.parse(row.groupes || "[]") : (row.groupes ?? []),
+  };
+}
 
 export function getDevisById(id: string) {
   try {
     const result = Devis.findById(id);
-    return result;
+    return parseDevis(result);
   } catch (e) {
     console.error(e);
     return null;
@@ -516,7 +531,7 @@ export function getDevisById(id: string) {
 export async function getAllDevis() {
   try {
     const result = await Devis.findAll({ orderBy : { column : "numero", order : "DESC"}});
-    return result;
+    return Array.isArray(result) ? result.map(parseDevis) : result;
   } catch (e) {
     console.error(e);
     return null;
@@ -526,7 +541,7 @@ export async function getAllDevis() {
 export async function getDevisByClientId(clientId: string) {
   try {
     const result = await Devis.findAll({ where : { clientId : clientId }, orderBy : { column : "numero", order : "DESC"}});
-    return result;
+    return Array.isArray(result) ? result.map(parseDevis) : result;
   } catch (e) {
     console.error(e);
     return null;
@@ -540,6 +555,7 @@ export function createDevis(data: Omit<Devis, "id" | "createdAt" | "updatedAt">)
       numero: data.numero,
       clientId: data.clientId,
       lignes: JSON.stringify(data.lignes),
+      groupes: JSON.stringify(data.groupes ?? []),
       totalHT: data.totalHT,
       totalTVA: data.totalTVA,
       totalTTC: data.totalTTC,
@@ -569,6 +585,9 @@ export function updateDevis(id: string, data: Partial<Omit<Devis, "id" | "create
     if (data.lignes) {
       updateData.lignes = JSON.stringify(data.lignes);
     }
+    if (data.groupes !== undefined) {
+      updateData.groupes = JSON.stringify(data.groupes ?? []);
+    }
     updateData.updatedAt = new Date().toISOString();
     const result = Devis.update(id, updateData);
     return result;
@@ -596,6 +615,7 @@ const Factures = db.createModel<Facture>("factures", {
   clientId: "TEXT NOT NULL",
   devisId: "TEXT",
   lignes: "TEXT NOT NULL",
+  groupes: "TEXT NOT NULL DEFAULT '[]'",
   totalHT: "INTEGER NOT NULL",
   totalTVA: "INTEGER NOT NULL",
   totalTTC: "INTEGER NOT NULL",
@@ -617,12 +637,33 @@ const Factures = db.createModel<Facture>("factures", {
 
 const createFacturesTable = async () => {
   await Factures.createTable();
+  migrateFacturesTable();
 };
+
+function migrateFacturesTable() {
+  try {
+    orm.exec("ALTER TABLE factures ADD COLUMN groupes TEXT NOT NULL DEFAULT '[]'");
+  } catch (e: any) {
+    if (!/duplicate column name/i.test(e?.message ?? "")) {
+      console.error("Migration factures.groupes:", e);
+    }
+  }
+}
+
+function parseFacture(row: any): Facture | null {
+  if (!row) return row;
+  return {
+    ...row,
+    lignes: typeof row.lignes === "string" ? JSON.parse(row.lignes || "[]") : (row.lignes ?? []),
+    groupes: typeof row.groupes === "string" ? JSON.parse(row.groupes || "[]") : (row.groupes ?? []),
+    paiements: typeof row.paiements === "string" ? JSON.parse(row.paiements || "[]") : (row.paiements ?? []),
+  };
+}
 
 export function getFactureById(id: string) {
   try {
     const result = Factures.findById(id);
-    return result;
+    return parseFacture(result);
   } catch (e) {
     console.error(e);
     return null;
@@ -632,7 +673,7 @@ export function getFactureById(id: string) {
 export async function getAllFactures() {
   try {
     const result = await Factures.orderBy("numero", "DESC").findAll();
-    return result;
+    return Array.isArray(result) ? result.map(parseFacture) : result;
   } catch (e) {
     console.error(e);
     return null;
@@ -644,7 +685,7 @@ export async function getFacturesByClientId(clientId: string) {
     const result = await Factures.findAll({
         where : { clientId : clientId }
     });
-    return result;
+    return Array.isArray(result) ? result.map(parseFacture) : result;
   } catch (e) {
     console.error(e);
     return null;
@@ -659,6 +700,7 @@ export function createFacture(data: Omit<Facture, "id" | "createdAt" | "updatedA
       clientId: data.clientId,
       devisId: data.devisId,
       lignes: JSON.stringify(data.lignes),
+      groupes: JSON.stringify(data.groupes ?? []),
       totalHT: data.totalHT,
       totalTVA: data.totalTVA,
       totalTTC: data.totalTTC,
@@ -689,6 +731,9 @@ export function updateFacture(id: string, data: Partial<Omit<Facture, "id" | "cr
     const updateData: any = { ...data };
     if (data.lignes) {
       updateData.lignes = JSON.stringify(data.lignes);
+    }
+    if (data.groupes !== undefined) {
+      updateData.groupes = JSON.stringify(data.groupes ?? []);
     }
     if (data.paiements) {
       updateData.paiements = JSON.stringify(data.paiements);

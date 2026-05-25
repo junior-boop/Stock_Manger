@@ -15,6 +15,28 @@ declare global {
       devis: any;
       factures: any;
       lignesDocuments: any;
+      images: any;
+    };
+    win: {
+      minimize: () => Promise<void>;
+      maximize: () => Promise<boolean>;
+      close: () => Promise<void>;
+      isMaximized: () => Promise<boolean>;
+      onMaximizedChange: (cb: (maximized: boolean) => void) => () => void;
+    };
+    auth: {
+      isSetupDone: () => Promise<boolean>;
+      setup: (data: {
+        nom: string;
+        prenom: string;
+        email: string;
+        telephone?: string;
+        motDePasse: string;
+      }) => Promise<{ ok: boolean; error?: string; user?: any }>;
+      login: (email: string, motDePasse: string) => Promise<{ ok: boolean; error?: string; user?: any }>;
+      logout: () => Promise<{ ok: boolean }>;
+      me: () => Promise<any | null>;
+      hasPermission: (action: string) => Promise<boolean>;
     };
   }
 }

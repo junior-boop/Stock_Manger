@@ -103,7 +103,7 @@ export function ProductItems({ data }: { data: Partial<Article> }) {
 
 
     return (
-        <NavLink to={`/produits/${data.id}`} className="flex flex-col w-full gap-3">
+        <NavLink to={`/produits/article/${data.id}`} className="flex flex-col w-full gap-3">
             <span className="flex items-center justify-center overflow-hidden aspect-square bg-gray-100 w-full rounded-2xl">
                 <img src={images as string} className="object-cover w-full h-full" />
             </span>

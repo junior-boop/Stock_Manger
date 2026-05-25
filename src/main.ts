@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -59,6 +59,14 @@ import {
   updateLigneDocument,
   deleteLigneDocument,
 } from './Databases';
+import {
+  isSetupDone,
+  setupFirstAdmin,
+  login as authLogin,
+  logout as authLogout,
+  getCurrentUser,
+  hasPermission,
+} from './Databases/auth';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -72,6 +80,21 @@ initializeTables().then(() => {
 }).catch(err => {
   console.error('Erreur lors de l\'initialisation de la base de données:', err);
 });
+
+// ======================== IPC HANDLERS - AUTH ========================
+ipcMain.handle('auth:isSetupDone', async () => isSetupDone());
+ipcMain.handle('auth:setup', async (_event, data) => setupFirstAdmin(data));
+ipcMain.handle('auth:login', async (_event, email: string, motDePasse: string) =>
+  authLogin(email, motDePasse),
+);
+ipcMain.handle('auth:logout', async () => {
+  authLogout();
+  return { ok: true };
+});
+ipcMain.handle('auth:me', async () => getCurrentUser());
+ipcMain.handle('auth:hasPermission', async (_event, action: string) =>
+  hasPermission(action),
+);
 
 // ======================== IPC HANDLERS - ARTICLES ========================
 ipcMain.handle('articles:getById', async (event, id) => getArticleById(id));
@@ -160,7 +183,6 @@ ipcMain.handle('images:getPath', async () => {
 ipcMain.handle('images:get', async (event, filename: string) => {
   try {
     const filePath = path.join(filename);
-    console.log('filePath:', imagesDir)
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const data = fs.readFileSync(filePath);
       const ext = path.extname(filename).slice(1);
@@ -184,6 +206,37 @@ ipcMain.handle('images:list', async () => {
   }
 });
 
+// ======================== IPC HANDLERS - PDF & SHELL ========================
+const devisPdfDir = path.join(app.getPath('userData'), 'devis');
+if (!fs.existsSync(devisPdfDir)) {
+  fs.mkdirSync(devisPdfDir, { recursive: true });
+}
+
+ipcMain.handle('pdf:generateDevis', async (_event, html: string, filename: string) => {
+  const pdfWin = new BrowserWindow({
+    show: false,
+    webPreferences: { offscreen: true, sandbox: true },
+  });
+  try {
+    await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    const buffer = await pdfWin.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
+    });
+    const safeName = filename.replace(/[^a-zA-Z0-9_\-.]/g, '_');
+    const filePath = path.join(devisPdfDir, `${safeName}.pdf`);
+    fs.writeFileSync(filePath, buffer);
+    return filePath;
+  } finally {
+    pdfWin.destroy();
+  }
+});
+
+ipcMain.handle('shell:openPath', async (_event, p: string) => shell.openPath(p));
+ipcMain.handle('shell:openExternal', async (_event, url: string) => shell.openExternal(url));
+ipcMain.handle('shell:showItemInFolder', async (_event, p: string) => shell.showItemInFolder(p));
+
 // ======================== IPC HANDLER - REFERENCE AUTOINCREMENT ========================
 ipcMain.handle('articles:generateReference', async (event, collectionId: string) => {
   try {
@@ -206,6 +259,9 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1920,
     height: 1020,
+    frame: false,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#f8fafc',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,
@@ -217,6 +273,19 @@ const createWindow = () => {
     },
     show : false
   });
+
+  // ======================== IPC HANDLERS - WINDOW CONTROLS ========================
+  ipcMain.handle('window:minimize', () => mainWindow.minimize());
+  ipcMain.handle('window:maximize', () => {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+    return mainWindow.isMaximized();
+  });
+  ipcMain.handle('window:close', () => mainWindow.close());
+  ipcMain.handle('window:isMaximized', () => mainWindow.isMaximized());
+
+  mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximized', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximized', false));
 
   Menu.setApplicationMenu(null);
 

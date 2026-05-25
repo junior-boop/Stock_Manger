@@ -178,6 +178,26 @@ export interface LigneDocument {
   montantTotalTTC: MontantFCFA    // quantite * prixUnitaireTTC
   remise       : number           // En pourcentage (0 par défaut)
   notes       ?: string
+  groupeId    ?: ID               // Réf. GroupeDevis (par-devis, optionnel)
+  sousGroupeId?: ID               // Réf. SousGroupeDevis (par-devis, optionnel)
+}
+
+
+// ─────────────────────────────────────────────
+//  GROUPES (par-devis : pièces de maison, catégories…)
+// ─────────────────────────────────────────────
+
+export interface SousGroupeDevis {
+  id    : ID
+  nom   : string
+  ordre : number
+}
+
+export interface GroupeDevis {
+  id          : ID
+  nom         : string
+  ordre       : number
+  sousGroupes : SousGroupeDevis[]
 }
 
 
@@ -198,6 +218,7 @@ export interface Devis {
   numero          : string        // Numéro séquentiel (ex : "DEV-2025-0042")
   clientId        : ID            // Réf. Client
   lignes          : LigneDocument[]
+  groupes        ?: GroupeDevis[] // Regroupement libre des lignes (par-devis)
   totalHT         : MontantFCFA   // Somme des montantTotalHT des lignes
   totalTVA        : MontantFCFA
   totalTTC        : MontantFCFA
@@ -253,6 +274,7 @@ export interface Facture {
   clientId        : ID            // Réf. Client
   devisId        ?: ID            // Réf. Devis d'origine (si applicable)
   lignes          : LigneDocument[]
+  groupes        ?: GroupeDevis[] // Repris du devis lors de la conversion
   totalHT         : MontantFCFA
   totalTVA        : MontantFCFA
   totalTTC        : MontantFCFA
