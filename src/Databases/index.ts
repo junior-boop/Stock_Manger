@@ -1,16 +1,19 @@
 import { ModelFactory, SimpleORM } from "../simpleorm/simpleorm-sync";
 
 import type {
-    Article, 
-    Client, 
-    Collection, 
-    Devis, 
-    Facture, 
-    SousCollection, 
-    Administrateur, 
+    Article,
+    Client,
+    Collection,
+    Devis,
+    Facture,
+    SousCollection,
+    Administrateur,
     LigneDocument,
-    DimensionsArticle, 
-    Adresse, 
+    DimensionsArticle,
+    Adresse,
+    Technicien,
+    Projet,
+    TacheProjet,
 } from "./db"
 
 import { v4 as uuidv4 } from "uuid";
@@ -494,6 +497,7 @@ const Devis = db.createModel<Devis>("devis", {
   dateAcceptation: "DATETIME",
   notes: "TEXT",
   conditionsPaiement: "TEXT",
+  envois: "TEXT NOT NULL DEFAULT '[]'",
   factureId: "TEXT",
   createdAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
   updatedAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
@@ -507,7 +511,18 @@ const createDevisTable = async () => {
   } catch {
     // Colonne déjà présente
   }
+  migrateDevisTable();
 };
+
+function migrateDevisTable() {
+  try {
+    orm.exec("ALTER TABLE devis ADD COLUMN envois TEXT NOT NULL DEFAULT '[]'");
+  } catch (e: any) {
+    if (!/duplicate column name/i.test(e?.message ?? "")) {
+      console.error("Migration devis.envois:", e);
+    }
+  }
+}
 
 function parseDevis(row: any): Devis | null {
   if (!row) return row;
@@ -515,6 +530,7 @@ function parseDevis(row: any): Devis | null {
     ...row,
     lignes: typeof row.lignes === "string" ? JSON.parse(row.lignes || "[]") : (row.lignes ?? []),
     groupes: typeof row.groupes === "string" ? JSON.parse(row.groupes || "[]") : (row.groupes ?? []),
+    envois: typeof row.envois === "string" ? JSON.parse(row.envois || "[]") : (row.envois ?? []),
   };
 }
 
@@ -567,6 +583,7 @@ export function createDevis(data: Omit<Devis, "id" | "createdAt" | "updatedAt">)
       dateAcceptation: data.dateAcceptation,
       notes: data.notes,
       conditionsPaiement: data.conditionsPaiement,
+      envois: JSON.stringify(data.envois ?? []) as any,
       factureId: data.factureId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -587,6 +604,9 @@ export function updateDevis(id: string, data: Partial<Omit<Devis, "id" | "create
     }
     if (data.groupes !== undefined) {
       updateData.groupes = JSON.stringify(data.groupes ?? []);
+    }
+    if (data.envois !== undefined) {
+      updateData.envois = JSON.stringify(data.envois ?? []);
     }
     updateData.updatedAt = new Date().toISOString();
     const result = Devis.update(id, updateData);
@@ -861,6 +881,220 @@ export function deleteLigneDocument(id: string) {
   }
 }
 
+// ======================== TECHNICIENS ========================
+
+const Techniciens = db.createModel<Technicien>("techniciens", {
+  id: "TEXT PRIMARY KEY NOT NULL",
+  nom: "TEXT NOT NULL",
+  prenom: "TEXT NOT NULL",
+  telephone: "TEXT NOT NULL",
+  email: "TEXT",
+  specialite: "TEXT",
+  statut: "TEXT NOT NULL",
+  createdAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
+  updatedAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
+});
+
+const createTechniciensTable = async () => {
+  await Techniciens.createTable();
+};
+
+export function getTechnicienById(id: string) {
+  try { return Techniciens.findById(id); } catch (e) { console.error(e); return null; }
+}
+
+export async function getAllTechniciens() {
+  try { return await Techniciens.orderBy("nom", "ASC").findAll(); } catch (e) { console.error(e); return null; }
+}
+
+export function createTechnicien(data: Omit<Technicien, "id" | "createdAt" | "updatedAt">) {
+  try {
+    return Techniciens.create({
+      id: uuidv4(),
+      nom: data.nom,
+      prenom: data.prenom,
+      telephone: data.telephone,
+      email: data.email,
+      specialite: data.specialite,
+      statut: data.statut || "actif",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (e) { console.error(e); return null; }
+}
+
+export function updateTechnicien(id: string, data: Partial<Omit<Technicien, "id" | "createdAt">>) {
+  try {
+    return Techniciens.update(id, { ...data, updatedAt: new Date().toISOString() });
+  } catch (e) { console.error(e); return null; }
+}
+
+export function deleteTechnicien(id: string) {
+  try { return Techniciens.delete(id); } catch (e) { console.error(e); return null; }
+}
+
+
+// ======================== PROJETS ========================
+
+const Projets = db.createModel<Projet>("projets", {
+  id: "TEXT PRIMARY KEY NOT NULL",
+  nom: "TEXT NOT NULL",
+  description: "TEXT",
+  clientId: "TEXT NOT NULL",
+  adresse: "TEXT",
+  statut: "TEXT NOT NULL",
+  dateDebut: "DATETIME NOT NULL",
+  dateFin: "DATETIME",
+  dateFinReelle: "DATETIME",
+  devisIds: "TEXT NOT NULL DEFAULT '[]'",
+  technicienIds: "TEXT NOT NULL DEFAULT '[]'",
+  notes: "TEXT",
+  createdAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
+  updatedAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
+  createdBy: "TEXT NOT NULL",
+});
+
+const createProjetsTable = async () => {
+  await Projets.createTable();
+};
+
+function parseProjet(row: any): Projet | null {
+  if (!row) return null;
+  return {
+    ...row,
+    adresse: row.adresse ? (typeof row.adresse === "string" ? JSON.parse(row.adresse) : row.adresse) : undefined,
+    devisIds: typeof row.devisIds === "string" ? JSON.parse(row.devisIds || "[]") : (row.devisIds ?? []),
+    technicienIds: typeof row.technicienIds === "string" ? JSON.parse(row.technicienIds || "[]") : (row.technicienIds ?? []),
+  };
+}
+
+export function getProjetById(id: string) {
+  try { return parseProjet(Projets.findById(id)); } catch (e) { console.error(e); return null; }
+}
+
+export async function getAllProjets() {
+  try {
+    const result = await Projets.orderBy("createdAt", "DESC").findAll();
+    return Array.isArray(result) ? result.map(parseProjet) : result;
+  } catch (e) { console.error(e); return null; }
+}
+
+export async function getProjetsByClientId(clientId: string) {
+  try {
+    const result = await Projets.findAll({ where: { clientId } });
+    return Array.isArray(result) ? result.map(parseProjet) : result;
+  } catch (e) { console.error(e); return null; }
+}
+
+export function createProjet(data: Omit<Projet, "id" | "createdAt" | "updatedAt">) {
+  try {
+    return Projets.create({
+      id: uuidv4(),
+      nom: data.nom,
+      description: data.description,
+      clientId: data.clientId,
+      adresse: data.adresse ? JSON.stringify(data.adresse) : undefined,
+      statut: data.statut || "planifié",
+      dateDebut: data.dateDebut,
+      dateFin: data.dateFin,
+      dateFinReelle: data.dateFinReelle,
+      devisIds: JSON.stringify(data.devisIds ?? []),
+      technicienIds: JSON.stringify(data.technicienIds ?? []),
+      notes: data.notes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: data.createdBy,
+    });
+  } catch (e) { console.error(e); return null; }
+}
+
+export function updateProjet(id: string, data: Partial<Omit<Projet, "id" | "createdAt" | "createdBy">>) {
+  try {
+    const updateData: any = { ...data, updatedAt: new Date().toISOString() };
+    if (data.adresse !== undefined) updateData.adresse = data.adresse ? JSON.stringify(data.adresse) : null;
+    if (data.devisIds !== undefined) updateData.devisIds = JSON.stringify(data.devisIds);
+    if (data.technicienIds !== undefined) updateData.technicienIds = JSON.stringify(data.technicienIds);
+    return Projets.update(id, updateData);
+  } catch (e) { console.error(e); return null; }
+}
+
+export function deleteProjet(id: string) {
+  try { return Projets.delete(id); } catch (e) { console.error(e); return null; }
+}
+
+
+// ======================== TÂCHES PROJET ========================
+
+const TachesProjet = db.createModel<TacheProjet>("taches_projet", {
+  id: "TEXT PRIMARY KEY NOT NULL",
+  projetId: "TEXT NOT NULL",
+  titre: "TEXT NOT NULL",
+  description: "TEXT",
+  statut: "TEXT NOT NULL",
+  priorite: "TEXT NOT NULL",
+  technicienIds: "TEXT NOT NULL DEFAULT '[]'",
+  dateEcheance: "DATETIME",
+  ordre: "INTEGER NOT NULL DEFAULT 0",
+  createdAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
+  updatedAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
+  createdBy: "TEXT NOT NULL",
+});
+
+const createTachesProjetTable = async () => {
+  await TachesProjet.createTable();
+};
+
+function parseTache(row: any): TacheProjet | null {
+  if (!row) return null;
+  return {
+    ...row,
+    technicienIds: typeof row.technicienIds === "string" ? JSON.parse(row.technicienIds || "[]") : (row.technicienIds ?? []),
+  };
+}
+
+export function getTacheProjetById(id: string) {
+  try { return parseTache(TachesProjet.findById(id)); } catch (e) { console.error(e); return null; }
+}
+
+export async function getTachesProjetByProjetId(projetId: string) {
+  try {
+    const result = await TachesProjet.findAll({ where: { projetId }, orderBy: { column: "ordre", order: "ASC" } });
+    return Array.isArray(result) ? result.map(parseTache) : result;
+  } catch (e) { console.error(e); return null; }
+}
+
+export function createTacheProjet(data: Omit<TacheProjet, "id" | "createdAt" | "updatedAt">) {
+  try {
+    return TachesProjet.create({
+      id: uuidv4(),
+      projetId: data.projetId,
+      titre: data.titre,
+      description: data.description,
+      statut: data.statut || "à_faire",
+      priorite: data.priorite || "normale",
+      technicienIds: JSON.stringify(data.technicienIds ?? []),
+      dateEcheance: data.dateEcheance,
+      ordre: data.ordre ?? 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: data.createdBy,
+    });
+  } catch (e) { console.error(e); return null; }
+}
+
+export function updateTacheProjet(id: string, data: Partial<Omit<TacheProjet, "id" | "createdAt" | "createdBy">>) {
+  try {
+    const updateData: any = { ...data, updatedAt: new Date().toISOString() };
+    if (data.technicienIds !== undefined) updateData.technicienIds = JSON.stringify(data.technicienIds);
+    return TachesProjet.update(id, updateData);
+  } catch (e) { console.error(e); return null; }
+}
+
+export function deleteTacheProjet(id: string) {
+  try { return TachesProjet.delete(id); } catch (e) { console.error(e); return null; }
+}
+
+
 export async function initializeTables() {
   try {
     await createArticlesTable();
@@ -871,6 +1105,9 @@ export async function initializeTables() {
     await createFacturesTable();
     await createLignesDocumentsTable();
     await createAdministrateursTable();
+    await createTechniciensTable();
+    await createProjetsTable();
+    await createTachesProjetTable();
     return true;
   } catch (e) {
     console.error("Erreur lors de l'initialisation des tables:", e);

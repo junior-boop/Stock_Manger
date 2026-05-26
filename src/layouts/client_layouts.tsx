@@ -78,67 +78,70 @@ function ClientAside() {
     }, [clients, query, filter, lastDevisAtByClient]);
 
     return (
-        <div className="w-[350px] h-full bg-white border-r border-slate-100 p-3 flex flex-col">
-            <div className="flex items-center justify-between">
-                <Title title="Clients" />
-                {can('clients:write') && (
-                    <button
-                        onClick={() => setModalOpen(true)}
-                        className="h-[36px] pl-4 pr-2 flex text-sm items-center justify-center gap-2 bg-slate-800 text-white rounded-full cursor-pointer"
-                    >
-                        <span>Nouveau</span>
-                        <FluentAdd32Regular className="h-5 w-5" />
-                    </button>
-                )}
-            </div>
+        <div className="w-87.5 h-full bg-white border-r border-slate-100  flex flex-col">
+            <div className="px-3 pt-3 flex flex-col">
+                <div className="flex items-center justify-between">
+                    <Title title="Clients" />
+                    {can('clients:write') && (
+                        <button
+                            onClick={() => setModalOpen(true)}
+                            className="h-[36px] pl-4 pr-2 flex text-sm items-center justify-center gap-2 bg-slate-800 text-white rounded-full cursor-pointer"
+                        >
+                            <span>Nouveau</span>
+                            <FluentAdd32Regular className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
 
-            <div className="h-[56px] pl-5 pr-2 mt-2 flex items-center bg-slate-100 rounded-full">
-                <div className="flex w-full">
-                    <input
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        type="text"
-                        className="focus:outline-none flex-1 bg-transparent"
-                        placeholder="Chercher un client"
-                    />
-                    <button className="w-[42px] h-[42px] flex items-center justify-center">
-                        <FluentSearch32Filled className="h-6 w-6" />
-                    </button>
+                <div className="h-[56px] pl-5 pr-2 mt-2 flex items-center bg-slate-100 rounded-full">
+                    <div className="flex w-full">
+                        <input
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            type="text"
+                            className="focus:outline-none flex-1 bg-transparent"
+                            placeholder="Chercher un client"
+                        />
+                        <button className="w-[42px] h-[42px] flex items-center justify-center">
+                            <FluentSearch32Filled className="h-6 w-6" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mt-4 flex bg-slate-100 rounded-full p-1">
+                    {(['tous', 'particulier', 'entreprise'] as Filter[]).map((t) => (
+                        <button
+                            key={t}
+                            onClick={() => setFilter(t)}
+                            className={`flex-1 h-8 rounded-full text-xs ${filter === t ? 'bg-white shadow-sm font-medium' : 'text-gray-500'
+                                }`}
+                        >
+                            {t === 'tous' ? 'Tous' : t === 'particulier' ? 'Particuliers' : 'Entreprises'}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="mt-4 text-xs text-gray-400 px-1">
+                    {filtered.length} client{filtered.length > 1 ? 's' : ''}
                 </div>
             </div>
+            <div className="mt-2 flex-1 overflow-y-auto pr-1">
+                <div className='flex flex-col gap-3 px-3'>
+                    {filtered.length === 0 ? (
+                        <div className="text-sm text-gray-400 text-center py-8">
+                            {query || filter !== 'tous' ? 'Aucun résultat.' : 'Aucun client.'}
+                        </div>
+                    ) : (
+                        filtered.map((c) => (
+                            <ClientRow
+                                key={c.id}
+                                client={c}
+                                counts={countsByClient.get(c.id) ?? { devis: 0, factures: 0 }}
+                            />
+                        ))
+                    )}
+                </div>
 
-            <div className="mt-4 flex bg-slate-100 rounded-full p-1">
-                {(['tous', 'particulier', 'entreprise'] as Filter[]).map((t) => (
-                    <button
-                        key={t}
-                        onClick={() => setFilter(t)}
-                        className={`flex-1 h-8 rounded-full text-xs ${
-                            filter === t ? 'bg-white shadow-sm font-medium' : 'text-gray-500'
-                        }`}
-                    >
-                        {t === 'tous' ? 'Tous' : t === 'particulier' ? 'Particuliers' : 'Entreprises'}
-                    </button>
-                ))}
-            </div>
-
-            <div className="mt-4 text-xs text-gray-400 px-1">
-                {filtered.length} client{filtered.length > 1 ? 's' : ''}
-            </div>
-
-            <div className="mt-2 flex-1 overflow-y-auto flex flex-col gap-2 pr-1">
-                {filtered.length === 0 ? (
-                    <div className="text-sm text-gray-400 text-center py-8">
-                        {query || filter !== 'tous' ? 'Aucun résultat.' : 'Aucun client.'}
-                    </div>
-                ) : (
-                    filtered.map((c) => (
-                        <ClientRow
-                            key={c.id}
-                            client={c}
-                            counts={countsByClient.get(c.id) ?? { devis: 0, factures: 0 }}
-                        />
-                    ))
-                )}
             </div>
 
             {modalOpen && (
@@ -157,14 +160,12 @@ function ClientRow({ client, counts }: { client: Client; counts: { devis: number
     return (
         <NavLink
             to={`/clients/${client.id}`}
-            className={`block rounded-xl border px-4 py-3 transition-colors ${
-                isActive ? 'border-slate-300 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
-            }`}
+            className={`block rounded-xl border px-4 py-3 transition-colors ${isActive ? 'border-slate-300 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
+                }`}
         >
             <div className="flex items-center gap-2">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                    client.type === 'entreprise' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
-                }`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${client.type === 'entreprise' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
+                    }`}>
                     {client.type === 'entreprise' ? 'Ent.' : 'Part.'}
                 </span>
                 <span className={`flex-1 truncate text-sm ${isActive ? 'font-semibold' : ''}`}>

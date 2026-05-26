@@ -12,11 +12,21 @@ import DevisLayouts from '../layouts/devis_layouts';
 import DevisPage from '../pages/devis';
 import DevisNewPage from '../pages/devis_new';
 import DevisDetailPage from '../pages/devis_detail';
+import FacturesLayouts from '../layouts/factures_layouts';
+import FacturesPage from '../pages/factures';
+import FactureNewPage from '../pages/facture_new';
+import FactureDetailPage from '../pages/facture_detail';
+import ProjetsLayouts from '../layouts/projets_layouts';
+import ProjetsPage from '../pages/projets';
+import ProjetNewPage from '../pages/projet_new';
+import ProjetDetailPage from '../pages/projet_detail';
+import SettingsPage from '../pages/settings';
 import { AuthProvider, useAuth } from '../auth/authProvider';
 import TitleBar from '../components/titlebar';
 import { AlertsProvider, useAlerts } from '../components/alerts';
 import { useDatabase } from '../databaseProvider';
 import { useEffect, useRef } from 'react';
+import { initGlobalScrollbars } from '../libs/scrollbars';
 
 const Router = () => {
     const { user, isSetupDone, isLoading } = useAuth();
@@ -44,30 +54,38 @@ const Router = () => {
         <>
             <InventoryWatcher />
             <Routes>
-            <Route element={<Screen />}>
-                <Route path="/" element={<div className="p-6">Accueil</div>} />
-                <Route path="/produits" element={<ProductLayouts />}>
-                    <Route path="/produits/collections/:id" element={<ProductPage />}>
-                        <Route path="/produits/collections/:id?sous_collection=:sousId" element={<ProductPage />} />
+                <Route element={<Screen />}>
+                    <Route path="/" element={<div className="p-6">Accueil</div>} />
+                    <Route path="/produits" element={<ProductLayouts />}>
+                        <Route path="/produits/collections/:id" element={<ProductPage />}>
+                            <Route path="/produits/collections/:id?sous_collection=:sousId" element={<ProductPage />} />
+                        </Route>
+                        <Route path="/produits/article/:productId" element={<ArticleDetail />} />
+                        <Route path="/produits/*" element={<ProductPage />} />
                     </Route>
-                    <Route path="/produits/article/:productId" element={<ArticleDetail />} />
-                    <Route path="/produits/*" element={<ProductPage />} />
+                    <Route path="/clients" element={<ClientLayouts />}>
+                        <Route index element={<ClientsPage />} />
+                        <Route path=":id" element={<ClientDetailPage />} />
+                    </Route>
+                    <Route path="/devis" element={<DevisLayouts />}>
+                        <Route index element={<DevisPage />} />
+                        <Route path="new" element={<DevisNewPage />} />
+                        <Route path=":id" element={<DevisDetailPage />} />
+                    </Route>
+                    <Route path="/factures" element={<FacturesLayouts />}>
+                        <Route index element={<FacturesPage />} />
+                        <Route path="new" element={<FactureNewPage />} />
+                        <Route path=":id" element={<FactureDetailPage />} />
+                    </Route>
+                    <Route path="/projets" element={<ProjetsLayouts />}>
+                        <Route index element={<ProjetsPage />} />
+                        <Route path="new" element={<ProjetNewPage />} />
+                        <Route path=":id" element={<ProjetDetailPage />} />
+                    </Route>
+                    {/* <Route path="/taches" element={<div className="p-6">Tâches (à venir)</div>} /> */}
+                    <Route path="/settings" element={<SettingsPage />} />
                 </Route>
-                <Route path="/clients" element={<ClientLayouts />}>
-                    <Route index element={<ClientsPage />} />
-                    <Route path=":id" element={<ClientDetailPage />} />
-                </Route>
-                <Route path="/devis" element={<DevisLayouts />}>
-                    <Route index element={<DevisPage />} />
-                    <Route path="new" element={<DevisNewPage />} />
-                    <Route path=":id" element={<DevisDetailPage />} />
-                </Route>
-                <Route path="/factures" element={<div className="p-6">Factures (à venir)</div>} />
-                <Route path="/projets" element={<div className="p-6">Projets (à venir)</div>} />
-                <Route path="/taches" element={<div className="p-6">Tâches (à venir)</div>} />
-                <Route path="/settings" element={<div className="p-6">Paramètres (à venir)</div>} />
-            </Route>
-        </Routes>
+            </Routes>
         </>
     );
 };
@@ -97,6 +115,16 @@ function InventoryWatcher() {
 }
 
 export default function App() {
+    useEffect(() => {
+        let dispose: (() => void) | null = null;
+        const timer = window.setTimeout(() => {
+            dispose = initGlobalScrollbars();
+        }, 300);
+        return () => {
+            window.clearTimeout(timer);
+            dispose?.();
+        };
+    }, []);
     return (
         <AlertsProvider>
             <AuthProvider>

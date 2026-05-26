@@ -16,6 +16,9 @@ declare global {
       factures: any;
       lignesDocuments: any;
       images: any;
+      techniciens: any;
+      projets: any;
+      tachesProjet: any;
     };
     win: {
       minimize: () => Promise<void>;

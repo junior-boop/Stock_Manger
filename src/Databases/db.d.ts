@@ -213,6 +213,16 @@ export type StatutDevis =
   | 'expiré'
   | 'annulé'
 
+export type CanalEnvoiDevis = 'pdf' | 'whatsapp' | 'manuel'
+
+export interface DevisEnvoi {
+  id    : ID
+  date  : ISODateString
+  canal : CanalEnvoiDevis
+  par   : ID
+  notes?: string
+}
+
 export interface Devis {
   id              : ID
   numero          : string        // Numéro séquentiel (ex : "DEV-2025-0042")
@@ -230,6 +240,7 @@ export interface Devis {
   dateAcceptation?: ISODateString
   notes          ?: string
   conditionsPaiement?: string
+  envois         ?: DevisEnvoi[]   // Historique des envois (PDF, WhatsApp, manuel)
   factureId      ?: ID            // Réf. Facture générée (si accepté)
   createdAt       : ISODateString
   updatedAt       : ISODateString
@@ -292,6 +303,71 @@ export interface Facture {
   createdAt       : ISODateString
   updatedAt       : ISODateString
   createdBy       : ID            // Réf. Administrateur
+}
+
+
+// ─────────────────────────────────────────────
+//  TECHNICIEN
+// ─────────────────────────────────────────────
+
+export interface Technicien {
+  id          : ID
+  nom         : string
+  prenom      : string
+  telephone   : string
+  email      ?: string
+  specialite ?: string
+  statut      : StatutActif
+  createdAt   : ISODateString
+  updatedAt   : ISODateString
+}
+
+
+// ─────────────────────────────────────────────
+//  PROJET
+// ─────────────────────────────────────────────
+
+export type StatutProjet = 'planifié' | 'en_cours' | 'en_pause' | 'terminé' | 'annulé'
+
+export interface Projet {
+  id              : ID
+  nom             : string
+  description    ?: string
+  clientId        : ID
+  adresse        ?: Adresse       // JSON en base
+  statut          : StatutProjet
+  dateDebut       : ISODateString
+  dateFin        ?: ISODateString  // date fin prévue
+  dateFinReelle  ?: ISODateString  // date fin réelle
+  devisIds        : ID[]           // JSON en base
+  technicienIds   : ID[]           // JSON en base
+  notes          ?: string
+  createdAt       : ISODateString
+  updatedAt       : ISODateString
+  createdBy       : ID
+}
+
+
+// ─────────────────────────────────────────────
+//  TÂCHE PROJET (Kanban)
+// ─────────────────────────────────────────────
+
+export type StatutTache   = 'à_faire' | 'en_cours' | 'terminé' | 'bloqué'
+export type PrioriteTache = 'basse' | 'normale' | 'haute' | 'urgente'
+
+export interface TacheProjet {
+  id            : ID
+  projetId      : ID
+  titre         : string
+  description  ?: string
+  statut        : StatutTache
+  priorite      : PrioriteTache
+  technicienIds : ID[]           // JSON en base
+  dateEcheance ?: ISODateString
+  ordre         : number
+  createdAt     : ISODateString
+  updatedAt     : ISODateString
+  createdBy     : ID
 }
 
 

@@ -1,38 +1,25 @@
 import { useState } from 'react';
-import { CanalEnvoiDevis, Client, Devis } from '../Databases/db.d';
-import { buildDevisHTML, buildWhatsAppMessage, formatPhoneForWhatsApp } from '../libs/devis_pdf';
+import { Client, Facture } from '../Databases/db.d';
+import { buildFactureHTML, buildFactureWhatsAppMessage } from '../libs/facture_pdf';
+import { formatPhoneForWhatsApp } from '../libs/devis_pdf';
 import { useAlerts } from './alerts';
 
-declare global {
-    interface Window {
-        pdf: {
-            generateDevis: (html: string, filename: string) => Promise<string>;
-            generateFacture: (html: string, filename: string) => Promise<string>;
-        };
-        shell: {
-            openPath: (p: string) => Promise<string>;
-            openExternal: (url: string) => Promise<void>;
-            showItemInFolder: (p: string) => Promise<void>;
-        };
-    }
-}
-
 type Props = {
-    devis: Devis;
+    facture: Facture;
     client: Client | undefined;
     onClose: () => void;
-    onSent: (canal: CanalEnvoiDevis) => Promise<void> | void;
+    onMarkEmise?: (() => Promise<void> | void) | undefined;
 };
 
 type Mode = null | 'pdf' | 'whatsapp' | 'mark';
 
-export default function DevisSendModal({ devis, client, onClose, onSent }: Props) {
+export default function FactureSendModal({ facture, client, onClose, onMarkEmise }: Props) {
     const { success, error: notifyError } = useAlerts();
     const [busy, setBusy] = useState<Mode>(null);
 
     const generatePdf = async (): Promise<string> => {
-        const html = buildDevisHTML(devis, client);
-        return await window.pdf.generateDevis(html, devis.numero);
+        const html = buildFactureHTML(facture, client);
+        return await window.pdf.generateFacture(html, facture.numero);
     };
 
     const handlePdf = async () => {
@@ -40,8 +27,7 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
         try {
             const filePath = await generatePdf();
             await window.shell.openPath(filePath);
-            await onSent('pdf');
-            success('PDF généré', devis.numero);
+            success('PDF généré', facture.numero);
             onClose();
         } catch (err: any) {
             notifyError('Échec génération PDF', err?.message ?? 'Erreur.');
@@ -60,9 +46,8 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
         try {
             const filePath = await generatePdf();
             await window.shell.showItemInFolder(filePath);
-            const msg = encodeURIComponent(buildWhatsAppMessage(devis, client));
+            const msg = encodeURIComponent(buildFactureWhatsAppMessage(facture, client));
             await window.shell.openExternal(`https://wa.me/${phone}?text=${msg}`);
-            await onSent('whatsapp');
             success('WhatsApp ouvert', 'Attache le PDF depuis le dossier ouvert.');
             onClose();
         } catch (err: any) {
@@ -73,10 +58,11 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
     };
 
     const handleMark = async () => {
+        if (!onMarkEmise) return;
         setBusy('mark');
         try {
-            await onSent('manuel');
-            success('Devis marqué envoyé', devis.numero);
+            await onMarkEmise();
+            success('Facture émise', facture.numero);
             onClose();
         } catch (err: any) {
             notifyError('Échec', err?.message ?? 'Erreur.');
@@ -92,14 +78,14 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
                 className="bg-white rounded-2xl w-full max-w-md overflow-hidden"
             >
                 <div className="px-6 py-4 border-b border-slate-100">
-                    <h2 className="text-lg font-semibold">Envoyer le devis</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">{devis.numero} · {client?.nom ?? 'Client'}</p>
+                    <h2 className="text-lg font-semibold">Envoyer la facture</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">{facture.numero} · {client?.nom ?? 'Client'}</p>
                 </div>
 
                 <div className="p-4 space-y-2">
                     <SendOption
                         title="Télécharger le PDF"
-                        subtitle="Génère et ouvre le PDF du devis"
+                        subtitle="Génère et ouvre le PDF de la facture"
                         onClick={handlePdf}
                         loading={busy === 'pdf'}
                         disabled={busy !== null}
@@ -112,14 +98,16 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
                         disabled={busy !== null}
                         accent
                     />
-                    <SendOption
-                        title="Juste marquer envoyé"
-                        subtitle="Change le statut sans rien générer"
-                        onClick={handleMark}
-                        loading={busy === 'mark'}
-                        disabled={busy !== null}
-                        muted
-                    />
+                    {onMarkEmise && (
+                        <SendOption
+                            title="Juste marquer émise"
+                            subtitle="Passe le brouillon en facture émise sans rien générer"
+                            onClick={handleMark}
+                            loading={busy === 'mark'}
+                            disabled={busy !== null}
+                            muted
+                        />
+                    )}
                 </div>
 
                 <div className="px-6 py-3 border-t border-slate-100 flex justify-end">

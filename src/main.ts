@@ -58,6 +58,25 @@ import {
   createLigneDocument,
   updateLigneDocument,
   deleteLigneDocument,
+  // Techniciens
+  getTechnicienById,
+  getAllTechniciens,
+  createTechnicien,
+  updateTechnicien,
+  deleteTechnicien,
+  // Projets
+  getProjetById,
+  getAllProjets,
+  getProjetsByClientId,
+  createProjet,
+  updateProjet,
+  deleteProjet,
+  // TachesProjet
+  getTacheProjetById,
+  getTachesProjetByProjetId,
+  createTacheProjet,
+  updateTacheProjet,
+  deleteTacheProjet,
 } from './Databases';
 import {
   isSetupDone,
@@ -156,6 +175,28 @@ ipcMain.handle('lignes-documents:create', async (event, data) => createLigneDocu
 ipcMain.handle('lignes-documents:update', async (event, id, data) => updateLigneDocument(id, data));
 ipcMain.handle('lignes-documents:delete', async (event, id) => deleteLigneDocument(id));
 
+// ======================== IPC HANDLERS - TECHNICIENS ========================
+ipcMain.handle('techniciens:getById', async (event, id) => getTechnicienById(id));
+ipcMain.handle('techniciens:getAll', async () => getAllTechniciens());
+ipcMain.handle('techniciens:create', async (event, data) => createTechnicien(data));
+ipcMain.handle('techniciens:update', async (event, id, data) => updateTechnicien(id, data));
+ipcMain.handle('techniciens:delete', async (event, id) => deleteTechnicien(id));
+
+// ======================== IPC HANDLERS - PROJETS ========================
+ipcMain.handle('projets:getById', async (event, id) => getProjetById(id));
+ipcMain.handle('projets:getAll', async () => getAllProjets());
+ipcMain.handle('projets:getByClientId', async (event, clientId) => getProjetsByClientId(clientId));
+ipcMain.handle('projets:create', async (event, data) => createProjet(data));
+ipcMain.handle('projets:update', async (event, id, data) => updateProjet(id, data));
+ipcMain.handle('projets:delete', async (event, id) => deleteProjet(id));
+
+// ======================== IPC HANDLERS - TÂCHES PROJET ========================
+ipcMain.handle('taches-projet:getById', async (event, id) => getTacheProjetById(id));
+ipcMain.handle('taches-projet:getByProjetId', async (event, projetId) => getTachesProjetByProjetId(projetId));
+ipcMain.handle('taches-projet:create', async (event, data) => createTacheProjet(data));
+ipcMain.handle('taches-projet:update', async (event, id, data) => updateTacheProjet(id, data));
+ipcMain.handle('taches-projet:delete', async (event, id) => deleteTacheProjet(id));
+
 // ======================== IPC HANDLER - IMAGES ========================
 const imagesDir = path.join(app.getPath('pictures'), "..", 'images');
 
@@ -211,8 +252,12 @@ const devisPdfDir = path.join(app.getPath('userData'), 'devis');
 if (!fs.existsSync(devisPdfDir)) {
   fs.mkdirSync(devisPdfDir, { recursive: true });
 }
+const facturesPdfDir = path.join(app.getPath('userData'), 'factures');
+if (!fs.existsSync(facturesPdfDir)) {
+  fs.mkdirSync(facturesPdfDir, { recursive: true });
+}
 
-ipcMain.handle('pdf:generateDevis', async (_event, html: string, filename: string) => {
+async function renderPdfToFile(html: string, filename: string, dir: string): Promise<string> {
   const pdfWin = new BrowserWindow({
     show: false,
     webPreferences: { offscreen: true, sandbox: true },
@@ -225,13 +270,21 @@ ipcMain.handle('pdf:generateDevis', async (_event, html: string, filename: strin
       margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
     });
     const safeName = filename.replace(/[^a-zA-Z0-9_\-.]/g, '_');
-    const filePath = path.join(devisPdfDir, `${safeName}.pdf`);
+    const filePath = path.join(dir, `${safeName}.pdf`);
     fs.writeFileSync(filePath, buffer);
     return filePath;
   } finally {
     pdfWin.destroy();
   }
-});
+}
+
+ipcMain.handle('pdf:generateDevis', async (_event, html: string, filename: string) =>
+  renderPdfToFile(html, filename, devisPdfDir),
+);
+
+ipcMain.handle('pdf:generateFacture', async (_event, html: string, filename: string) =>
+  renderPdfToFile(html, filename, facturesPdfDir),
+);
 
 ipcMain.handle('shell:openPath', async (_event, p: string) => shell.openPath(p));
 ipcMain.handle('shell:openExternal', async (_event, url: string) => shell.openExternal(url));

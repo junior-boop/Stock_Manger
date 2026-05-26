@@ -7,19 +7,27 @@ import { Article, SousCollection } from "../Databases/db.d"
 
 export default function ProductPage() {
     const [isLoading, setLoading] = useState(false)
-    const { collections, articles, createSousCollection } = useDatabase()
+    const { collections, articles, sousCollections, createSousCollection } = useDatabase()
     const { open_set } = openNewProductWindow()
     const { open_sous, set_sous } = OpenSousCollection()
     const { id } = useParams()
+    const location = useLocation()
+    const sousCollectionId = new URLSearchParams(location.search).get('sous_collection')
+
     const name = collections.filter(el => el.id === id)[0]
-    const articlesForCollection = articles.filter(el => el.collectionId === id)
+    const sousCollectionName = sousCollectionId
+        ? sousCollections.find(sc => sc.id === sousCollectionId)?.nom
+        : null
+    const articlesForCollection = articles.filter(el => {
+        if (el.collectionId !== id) return false
+        if (sousCollectionId) return el.sousCollectionId === sousCollectionId
+        return true
+    })
 
     const [sousCollectionState, setSousCollectionState] = useState<Partial<SousCollection>>({
         nom: "",
         ordre: 0
     })
-    const location = useLocation()
-    console.log(location.search)
 
 
     const handleOpenSousCollection = () => {
@@ -36,15 +44,20 @@ export default function ProductPage() {
             description: '',
         }
         const value = await createSousCollection(object)
-
-        if (value) { set_sous(); setLoading(false) }
+        setLoading(false)
+        if (value) { set_sous() }
     }
     return (
         <>
             <section className="flex-1 flex flex-col h-full">
                 <div className="h-[72px]"></div>
                 <div className="px-10 py-3 border-b border-slate-100 w-full flex justify-between">
-                    <h1 className="font-light text-4xl">{name?.nom}</h1>
+                    <h1 className="font-light text-4xl">
+                        {name?.nom}
+                        {sousCollectionName && (
+                            <span className="text-slate-400"> — {sousCollectionName}</span>
+                        )}
+                    </h1>
                     <div className="flex items-center gap-2 mt-auto">
                         <button onClick={handleOpenSousCollection} className="px-4 py-2 bg-blue-800 text-white  rounded-full min-w-[175px] flex items-center justify-center" disabled={isLoading}>
                             {

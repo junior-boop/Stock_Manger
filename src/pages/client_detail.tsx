@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDatabase } from '../databaseProvider';
 import { usePermissions } from '../auth/authProvider';
-import { Client, Devis } from '../Databases/db.d';
+import { Client, Devis, Facture } from '../Databases/db.d';
 import ClientFormModal from '../components/client_form_modal';
 import { useAlerts } from '../components/alerts';
 import { statutColor, statutLabel } from '../layouts/devis_layouts';
+import { statutColorFacture, statutLabelFacture } from '../layouts/factures_layouts';
 import { formatDate, formatFCFA } from '../libs/format';
 
 type Tab = 'devis' | 'factures' | 'notes';
@@ -42,8 +43,15 @@ export default function ClientDetailPage() {
             .sort((a, b) => (b.dateEmission ?? '').localeCompare(a.dateEmission ?? '')),
         [devis, client.id],
     );
-    const clientFactures = factures.filter((f) => f.clientId === client.id);
+    const clientFactures = useMemo(
+        () => factures
+            .filter((f) => f.clientId === client.id)
+            .sort((a, b) => (b.dateEmission ?? '').localeCompare(a.dateEmission ?? '')),
+        [factures, client.id],
+    );
     const totalDevis = clientDevis.reduce((s, d) => s + (d.totalApreRemise ?? d.totalTTC ?? 0), 0);
+    const totalFactures = clientFactures.reduce((s, f) => s + (f.totalApreRemise ?? f.totalTTC ?? 0), 0);
+    const totalRestant = clientFactures.reduce((s, f) => s + (f.montantRestant ?? 0), 0);
 
     const handleDelete = async () => {
         const ok = await confirm({
@@ -93,77 +101,95 @@ export default function ClientDetailPage() {
                 )}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-                <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-full bg-slate-800 text-white text-lg font-semibold flex items-center justify-center">
-                            {initials(client)}
-                        </div>
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-semibold">{displayName(client)}</h1>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                    client.type === 'entreprise' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
-                                }`}>
-                                    {client.type === 'entreprise' ? 'Entreprise' : 'Particulier'}
-                                </span>
+            <div className="px-6 py-6 space-y-6  max-w-270 w-full mx-auto">
+                <div className='space-y-6'>
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                        <div className="flex items-start gap-4">
+                            <div className="w-14 h-14 rounded-full bg-slate-800 text-white text-lg font-semibold flex items-center justify-center">
+                                {initials(client)}
                             </div>
-                            <div className="mt-1 text-sm text-gray-500">{client.email} · {client.telephone}</div>
-                            {client.telephone2 && <div className="text-sm text-gray-400">{client.telephone2}</div>}
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-xl font-semibold">{displayName(client)}</h1>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${client.type === 'entreprise' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
+                                        }`}>
+                                        {client.type === 'entreprise' ? 'Entreprise' : 'Particulier'}
+                                    </span>
+                                </div>
+                                <div className="mt-1 text-sm text-gray-500">{client.email} · {client.telephone}</div>
+                                {client.telephone2 && <div className="text-sm text-gray-400">{client.telephone2}</div>}
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 mt-6 text-sm">
-                        <InfoRow label="Adresse" value={formatAdresse(client)} />
-                        <InfoRow label="Statut" value={client.statut === 'actif' ? 'Actif' : 'Inactif'} />
-                    </div>
-
-                    {client.notes && (
-                        <div className="mt-6">
-                            <div className="text-xs uppercase text-gray-400 mb-1">Notes</div>
-                            <div className="text-sm text-gray-700 whitespace-pre-wrap">{client.notes}</div>
+                        <div className="grid grid-cols-2 gap-4 mt-6 text-sm">
+                            <InfoRow label="Adresse" value={formatAdresse(client)} />
+                            <InfoRow label="Statut" value={client.statut === 'actif' ? 'Actif' : 'Inactif'} />
                         </div>
-                    )}
-                </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200">
-                    <div className="border-b border-slate-100 px-4 flex">
-                        <TabBtn active={tab === 'devis'} onClick={() => setTab('devis')}>
-                            Devis <Count n={clientDevis.length} />
-                        </TabBtn>
-                        <TabBtn active={tab === 'factures'} onClick={() => setTab('factures')}>
-                            Factures <Count n={clientFactures.length} />
-                        </TabBtn>
-                        <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>
-                            Historique
-                        </TabBtn>
+                        {client.notes && (
+                            <div className="mt-6">
+                                <div className="text-xs uppercase text-gray-400 mb-1">Notes</div>
+                                <div className="text-sm text-gray-700 whitespace-pre-wrap">{client.notes}</div>
+                            </div>
+                        )}
                     </div>
-                    <div className="p-6 min-h-[200px]">
-                        {tab === 'devis' && (
-                            clientDevis.length === 0
-                                ? <Empty msg="Aucun devis pour ce client." />
-                                : (
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between text-xs text-gray-500 px-1">
-                                            <span>{clientDevis.length} devis</span>
-                                            <span>Total cumulé : <span className="font-medium text-slate-800">{formatFCFA(totalDevis)}</span></span>
+
+                    <div className="bg-white rounded-2xl border border-slate-200">
+                        <div className="border-b border-slate-100 px-4 flex">
+                            <TabBtn active={tab === 'devis'} onClick={() => setTab('devis')}>
+                                Devis <Count n={clientDevis.length} />
+                            </TabBtn>
+                            <TabBtn active={tab === 'factures'} onClick={() => setTab('factures')}>
+                                Factures <Count n={clientFactures.length} />
+                            </TabBtn>
+                            <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>
+                                Historique
+                            </TabBtn>
+                        </div>
+                        <div className="p-6 min-h-[200px]">
+                            {tab === 'devis' && (
+                                clientDevis.length === 0
+                                    ? <Empty msg="Aucun devis pour ce client." />
+                                    : (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between text-xs text-gray-500 px-1">
+                                                <span>{clientDevis.length} devis</span>
+                                                <span>Total cumulé : <span className="font-medium text-slate-800">{formatFCFA(totalDevis)}</span></span>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                {clientDevis.map((d) => (
+                                                    <DevisListRow key={d.id} devis={d} onOpen={() => navigate(`/devis/${d.id}`)} />
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col gap-2">
-                                            {clientDevis.map((d) => (
-                                                <DevisListRow key={d.id} devis={d} onOpen={() => navigate(`/devis/${d.id}`)} />
-                                            ))}
+                                    )
+                            )}
+                            {tab === 'factures' && (
+                                clientFactures.length === 0
+                                    ? <Empty msg="Aucune facture pour ce client." />
+                                    : (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between text-xs text-gray-500 px-1">
+                                                <span>{clientFactures.length} facture{clientFactures.length > 1 ? 's' : ''}</span>
+                                                <span>
+                                                    Total : <span className="font-medium text-slate-800">{formatFCFA(totalFactures)}</span>
+                                                    {totalRestant > 0 && (
+                                                        <> · Reste dû : <span className="font-semibold text-amber-700">{formatFCFA(totalRestant)}</span></>
+                                                    )}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                {clientFactures.map((f) => (
+                                                    <FactureListRow key={f.id} facture={f} onOpen={() => navigate(`/factures/${f.id}`)} />
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                )
-                        )}
-                        {tab === 'factures' && (
-                            clientFactures.length === 0
-                                ? <Empty msg="Aucune facture pour ce client." />
-                                : <div className="text-sm text-gray-500">Liste des factures à venir.</div>
-                        )}
-                        {tab === 'notes' && (
-                            <Empty msg="Le journal d'activité arrivera avec la sync." />
-                        )}
+                                    )
+                            )}
+                            {tab === 'notes' && (
+                                <Empty msg="Le journal d'activité arrivera avec la sync." />
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -192,9 +218,8 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     return (
         <button
             onClick={onClick}
-            className={`px-4 h-12 text-sm border-b-2 -mb-px ${
-                active ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
+            className={`px-4 h-12 text-sm border-b-2 -mb-px ${active ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
         >
             {children}
         </button>
@@ -229,6 +254,36 @@ function DevisListRow({ devis, onOpen }: { devis: Devis; onOpen: () => void }) {
                 </span>
                 <span className="text-sm font-medium text-slate-800">
                     {formatFCFA(devis.totalApreRemise ?? devis.totalTTC ?? 0)}
+                </span>
+            </div>
+        </button>
+    );
+}
+
+function FactureListRow({ facture, onOpen }: { facture: Facture; onOpen: () => void }) {
+    const restant = facture.montantRestant ?? 0;
+    return (
+        <button
+            onClick={onOpen}
+            className="w-full text-left rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-4 py-3 transition-colors"
+        >
+            <div className="flex items-center gap-2">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${statutColorFacture(facture.statut)}`}>
+                    {statutLabelFacture(facture.statut)}
+                </span>
+                <span className="text-xs text-gray-500 truncate">{facture.numero}</span>
+                <span className="flex-1" />
+                <span className="text-xs text-gray-400">{formatDate(facture.dateEmission)}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between">
+                <span className="text-xs text-gray-500">
+                    {facture.lignes?.length ?? 0} ligne{(facture.lignes?.length ?? 0) > 1 ? 's' : ''}
+                    {restant > 0 && (
+                        <> · <span className="text-amber-700 font-medium">Reste {formatFCFA(restant)}</span></>
+                    )}
+                </span>
+                <span className="text-sm font-medium text-slate-800">
+                    {formatFCFA(facture.totalApreRemise ?? facture.totalTTC ?? 0)}
                 </span>
             </div>
         </button>

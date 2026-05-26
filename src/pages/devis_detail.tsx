@@ -2,15 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useDatabase } from '../databaseProvider';
 import { usePermissions } from '../auth/authProvider';
-import { Devis, Facture, StatutDevis } from '../Databases/db.d';
+import { CanalEnvoiDevis, Devis, DevisEnvoi, Facture, Paiement, StatutDevis, StatutFacture } from '../Databases/db.d';
 import DevisForm, { DevisFormValue, computeTotaux } from '../components/devis_form';
-import { fromDateInput, toDateInput, formatDate } from '../libs/format';
+import { fromDateInput, toDateInput, formatDate, formatFCFA } from '../libs/format';
 import { statutColor, statutLabel } from '../layouts/devis_layouts';
 import { useAlerts } from '../components/alerts';
 import { useAuth } from '../auth/authProvider';
 import DevisSendModal from '../components/devis_send_modal';
+import FactureAcompteModal, { AcompteResult } from '../components/facture_acompte_modal';
 import { buildDevisHTML } from '../libs/devis_pdf';
 import { FluentMoreHorizontal32Regular } from '../libs/icons';
+import { v4 as uuidv4 } from 'uuid';
 
 const STATUT_OPTIONS: StatutDevis[] = ['brouillon', 'envoyé', 'accepté', 'refusé', 'expiré', 'annulé'];
 
@@ -26,11 +28,23 @@ function nextFactureNumero(existing: Facture[]): string {
     return `${prefix}${String(yearMax + 1).padStart(4, '0')}`;
 }
 
+function nextDevisNumero(existing: Devis[]): string {
+    const year = new Date().getFullYear();
+    const prefix = `DEV-${year}-`;
+    const yearMax = existing
+        .map((d) => d.numero)
+        .filter((n) => n?.startsWith(prefix))
+        .map((n) => parseInt(n.slice(prefix.length), 10))
+        .filter((n) => !Number.isNaN(n))
+        .reduce((m, n) => Math.max(m, n), 0);
+    return `${prefix}${String(yearMax + 1).padStart(4, '0')}`;
+}
+
 export default function DevisDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { devis, clients, articles, factures, updateDevis, deleteDevis, createFacture } = useDatabase();
+    const { devis, clients, articles, factures, createDevis, updateDevis, deleteDevis, createFacture } = useDatabase();
     const { can } = usePermissions();
     const { user } = useAuth();
     const { confirm, success, error: notifyError } = useAlerts();
@@ -44,6 +58,7 @@ export default function DevisDetailPage() {
     const [pdfBusy, setPdfBusy] = useState(false);
     const [statutMenuOpen, setStatutMenuOpen] = useState(false);
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+    const [acompteOpen, setAcompteOpen] = useState(false);
 
     useEffect(() => {
         if (current) {
@@ -142,39 +157,55 @@ export default function DevisDetailPage() {
         }
     };
 
-    const handleConvertToFacture = async () => {
+    const handleConvertToFacture = async (acompte: AcompteResult) => {
         if (current.factureId) return;
-        const ok = await confirm({
-            title: `Convertir ${current.numero} en facture ?`,
-            message: 'Une nouvelle facture brouillon sera créée à partir de ce devis.',
-            confirmLabel: 'Convertir',
-            danger: false,
-        });
-        if (!ok) return;
         setSubmitting(true);
         try {
             const now = new Date();
             const echeance = new Date(now);
             echeance.setDate(echeance.getDate() + 30);
             const totalApreRemise = current.totalApreRemise ?? current.totalTTC ?? 0;
+            const paiements: Paiement[] = [];
+            let montantPayé = 0;
+            if (acompte && acompte.montant > 0) {
+                paiements.push({
+                    id: uuidv4(),
+                    date: fromDateInput(acompte.date),
+                    montant: acompte.montant,
+                    mode: acompte.mode,
+                    enregistréPar: user?.id ?? '',
+                    ...(acompte.reference ? { reference: acompte.reference } : {}),
+                });
+                montantPayé = acompte.montant;
+            }
+            const montantRestant = Math.max(0, totalApreRemise - montantPayé);
+            const statutFacture: StatutFacture =
+                montantPayé >= totalApreRemise && totalApreRemise > 0
+                    ? 'payée'
+                    : montantPayé > 0
+                        ? 'partiellement_payée'
+                        : 'brouillon';
             const payload: Partial<Facture> = {
                 numero: nextFactureNumero(factures),
                 clientId: current.clientId,
                 devisId: current.id,
-                lignes: current.lignes,
-                groupes: current.groupes ?? [],
+                lignes: current.lignes.map((l) => {
+                    const { groupeId: _g, sousGroupeId: _sg, ...rest } = l;
+                    return rest;
+                }),
                 totalHT: current.totalHT,
                 totalTVA: current.totalTVA,
                 totalTTC: current.totalTTC,
                 remiseGlobale: current.remiseGlobale ?? 0,
                 totalApreRemise,
-                montantPayé: 0,
-                montantRestant: totalApreRemise,
-                paiements: [],
-                statut: 'brouillon',
+                montantPayé,
+                montantRestant,
+                paiements,
+                statut: statutFacture,
                 dateEmission: now.toISOString(),
                 dateEcheance: echeance.toISOString(),
                 createdBy: user?.id ?? '',
+                ...(montantRestant === 0 ? { datePaiementComplet: now.toISOString() } : {}),
                 ...(current.notes ? { notes: current.notes } : {}),
                 ...(current.conditionsPaiement ? { conditionsPaiement: current.conditionsPaiement } : {}),
             };
@@ -186,9 +217,48 @@ export default function DevisDetailPage() {
                 patch.dateAcceptation = now.toISOString();
             }
             await updateDevis(current.id, patch);
-            success('Facture créée', created.numero);
+            setAcompteOpen(false);
+            success(
+                'Facture créée',
+                acompte ? `${created.numero} · acompte ${formatFCFA(acompte.montant)}` : created.numero,
+            );
         } catch (err: any) {
             notifyError('Conversion impossible', err?.message ?? 'Erreur.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDuplicate = async () => {
+        setSubmitting(true);
+        try {
+            const now = new Date();
+            const validite = new Date(now);
+            validite.setDate(validite.getDate() + 30);
+            const totalApreRemise = current.totalApreRemise ?? current.totalTTC ?? 0;
+            const payload: Partial<Devis> = {
+                numero: nextDevisNumero(devis),
+                clientId: current.clientId,
+                lignes: current.lignes,
+                groupes: current.groupes ?? [],
+                totalHT: current.totalHT,
+                totalTVA: current.totalTVA,
+                totalTTC: current.totalTTC,
+                remiseGlobale: current.remiseGlobale ?? 0,
+                totalApreRemise,
+                statut: 'brouillon',
+                dateEmission: now.toISOString(),
+                dateValidite: validite.toISOString(),
+                createdBy: user?.id ?? '',
+                ...(current.notes ? { notes: current.notes } : {}),
+                ...(current.conditionsPaiement ? { conditionsPaiement: current.conditionsPaiement } : {}),
+            };
+            const created = await createDevis(payload);
+            if (!created) throw new Error('Duplication impossible.');
+            success('Devis dupliqué', created.numero);
+            navigate(`/devis/${created.id}`);
+        } catch (err: any) {
+            notifyError('Duplication impossible', err?.message ?? 'Erreur.');
         } finally {
             setSubmitting(false);
         }
@@ -277,11 +347,23 @@ export default function DevisDetailPage() {
                                         >
                                             {pdfBusy ? 'Génération…' : 'Télécharger PDF'}
                                         </button>
+                                        {can('devis:create') && (
+                                            <button
+                                                onClick={() => {
+                                                    setMoreMenuOpen(false);
+                                                    handleDuplicate();
+                                                }}
+                                                disabled={submitting}
+                                                className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                                Dupliquer
+                                            </button>
+                                        )}
                                         {can('factures:create') && !current.factureId && (
                                             <button
                                                 onClick={() => {
                                                     setMoreMenuOpen(false);
-                                                    handleConvertToFacture();
+                                                    setAcompteOpen(true);
                                                 }}
                                                 disabled={submitting}
                                                 className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 disabled:opacity-50"
@@ -349,7 +431,7 @@ export default function DevisDetailPage() {
                 )}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 flex flex-col overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
                 <DevisForm
                     value={value}
@@ -358,6 +440,7 @@ export default function DevisDetailPage() {
                     articles={articles}
                     readOnly={!editing}
                     lockClient
+                    envois={current.envois ?? []}
                 />
             </div>
 
@@ -366,11 +449,29 @@ export default function DevisDetailPage() {
                     devis={current}
                     client={clients.find((c) => c.id === current.clientId)}
                     onClose={() => setSendOpen(false)}
-                    onSent={async () => {
-                        await updateDevis(current.id, { statut: 'envoyé' });
+                    onSent={async (canal: CanalEnvoiDevis) => {
+                        const envoi: DevisEnvoi = {
+                            id: uuidv4(),
+                            date: new Date().toISOString(),
+                            canal,
+                            par: user?.id ?? '',
+                        };
+                        const envois = [...(current.envois ?? []), envoi];
+                        const patch: Partial<Devis> = { envois };
+                        if (current.statut === 'brouillon') patch.statut = 'envoyé';
+                        await updateDevis(current.id, patch);
                     }}
+                />
+            )}
+
+            {acompteOpen && (
+                <FactureAcompteModal
+                    devis={current}
+                    onClose={() => setAcompteOpen(false)}
+                    onConfirm={handleConvertToFacture}
                 />
             )}
         </div>
     );
 }
+

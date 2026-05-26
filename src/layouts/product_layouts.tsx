@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useLocation, useParams, useNavigate } from "react-router-dom"
+import { Outlet, NavLink, useLocation, useParams } from "react-router-dom"
 import { FluentAdd32Regular, FluentCheckmark32Regular, FluentChevronRight32Filled, FluentDelete32Regular, FluentEdit32Regular, FluentSearch32Filled, SvgSpinners180Ring, } from "../libs/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Title from "../components/title";
@@ -86,10 +86,6 @@ export default function ProductLayouts() {
 
 
 
-    useEffect(() => {
-        console.log(collection)
-    }, [collection])
-
     return (
         <div className="flex h-full w-full relative">
             <AsideList />
@@ -124,7 +120,7 @@ export default function ProductLayouts() {
                 </div>
             }
             {
-                open_state && (<div className="absolute top-0 left-0 w-full h-full opacity flex items-center justify-center z-50">
+                open_state && (<div className="absolute top-0 left-0 w-full h-full opacity flex items-center justify-end z-50">
                     <NewProduct />
                 </div>)
             }
@@ -148,42 +144,44 @@ const HomeGroupPage = () => {
 }
 
 export function AsideList() {
-    const [groupName, setGroupName] = useState<string | null>("")
+    const [query, setQuery] = useState("")
     const { set } = useOpenLayout()
 
     const { collections } = useDatabase()
 
-    useEffect(() => {
-        console.log(collections)
-    }, [collections])
-    return (
-        <div className="w-[350px] h-full bg-white border-r border-slate-100 p-3">
-            <div className="flex items-center justify-between">
-                <Title title="Produits" />
-                <button onClick={set} className="h-[36px] pl-4 pr-2 flex text-sm items-center justify-center gap-2 bg-slate-800 text-white rounded-full cursor-pointer">
-                    <span>Ajout. Collect.</span>
-                    <FluentAdd32Regular className="h-5 w-5" />
-                </button>
-            </div>
-            <div className="h-[56px] pl-5 pr-2 flex items-center  bg-slate-100 rounded-full">
-                <div className="flex w-full">
-                    <input onChange={({ target }) => setGroupName(target.value)} type="text" className="focus:outline-none flex-1 w-[180px]" placeholder="Chercher une collection" />
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase()
+        if (!q) return collections ?? []
+        return (collections ?? []).filter(c => c.nom?.toLowerCase().includes(q))
+    }, [collections, query])
 
-                    <button className="w-[42px] h-[42px] flex items-center justify-center">
-                        <FluentSearch32Filled className="h-6 w-6" />
+    return (
+        <div className="w-[350px] h-full bg-white border-r border-slate-100 flex flex-col">
+            <div className="px-3 pt-3 flex flex-col">
+                <div className="flex items-center justify-between">
+                    <Title title="Produits" />
+                    <button onClick={set} className="h-[36px] pl-4 pr-2 flex text-sm items-center justify-center gap-2 bg-slate-800 text-white rounded-full cursor-pointer">
+                        <span>Ajout. Collect.</span>
+                        <FluentAdd32Regular className="h-5 w-5" />
                     </button>
                 </div>
-            </div>
-            <div className="mt-8 flex items-center mb-2">
-                <div>
-                    {/* <Title title="Dossiers" /> */}
-                    <div className="text-sm text-gray-200">Liste de Dossiers</div>
+                <div className="h-[56px] pl-5 pr-2 mt-2 flex items-center bg-slate-100 rounded-full">
+                    <div className="flex w-full">
+                        <input value={query} onChange={({ target }) => setQuery(target.value)} type="text" className="focus:outline-none flex-1 w-[180px] bg-transparent" placeholder="Chercher une collection" />
+                        <button className="w-[42px] h-[42px] flex items-center justify-center">
+                            <FluentSearch32Filled className="h-6 w-6" />
+                        </button>
+                    </div>
+                </div>
+                <div className="mt-4 flex items-center mb-2">
+                    <div className="text-sm text-gray-400">Liste de Dossiers</div>
                 </div>
             </div>
-            <div className="flex flex-col gap-2" >
-                {
-                    collections?.map((el, key) => <GroupeItems data={el} key={key} />)
-                }
+
+            <div className="mt-2 flex-1 overflow-y-auto">
+                <div className="px-3 flex flex-col gap-2">
+                    {filtered.map((el, key) => <GroupeItems data={el} key={key} />)}
+                </div>
             </div>
         </div>
     )
@@ -220,64 +218,51 @@ const GroupeUpdate = ({ data, onClick }: { onClick: () => void, data: Partial<Co
 
 const Items = ({ data, onClick }: { onClick: () => void, data: Partial<Collection> }) => {
     const [isLocate, setIsLocate] = useState(false)
-    const { collections, deleteCollection, sousCollections, articles } = useDatabase()
-    const navigate = useNavigate()
+    const { deleteCollection, sousCollections } = useDatabase()
     const { id } = useParams()
 
-
-
     const handleDelete = () => {
-        console.log()
-        // navigate(`/groupes/dossier/${listedesgroupe[0]?.id}`)
         deleteCollection(data.id as string)
     }
 
     const sous_collection = sousCollections.filter(el => el.collectionId === data.id)
 
     useEffect(() => {
-        setIsLocate(false)
-    }, [])
+        setIsLocate(id === data.id)
+    }, [id])
 
-    useEffect(() => {
-        if (id === data.id) {
-            setIsLocate(true)
-        } else setIsLocate(false)
-    }, [location, id])
     return (
         <div className={`border border-slate-200 relative flex flex-col rounded-xl overflow-hidden ${isLocate ? "bg-blue-50" : ""} select-none`}>
             <NavLink to={`/produits/collections/${data.id}`} state={data} className='flex flex-col items-left justify-between w-full px-4 py-3'>
                 <span className={`flex-1 ${isLocate ? "font-semibold" : ""}`}>
                     {data.nom}
                 </span>
-                <span className="text-sm text-gray-400">Quantités : {data.quantite < 10 ? `0${data.quantite}` : data.quantite}</span>
+                <span className="text-sm text-gray-400">Quantités : {String(data.quantite ?? 0).padStart(2, '0')}</span>
                 <span className="text-xs text-gray-400">Order : {data.ordre}</span>
-
-                {/* {isLocate && <span className="w-[12px] h-[12px] rounded-full bg-blue-800"></span>} */}
             </NavLink>
 
             <div className="itemsMenu absolute top-[12px] right-0 flex gap-3 px-3 py-1">
                 <button onClick={onClick}>
                     <FluentEdit32Regular className="h-4 w-4" />
                 </button>
-                {
-                    data.quantite === 0 ? (<button onClick={handleDelete}>
+                {data.quantite === 0 && (
+                    <button onClick={handleDelete}>
                         <FluentDelete32Regular className="h-4 w-4" />
-                    </button>)
-                        : null
-                }
+                    </button>
+                )}
             </div>
 
             <div>
-                {
-                    sous_collection.map(el => (<NavLink to={{
-                        pathname: `/products/collections/${data.id}`,
-                        search: `?sous_collection=${el.id}`
-                    }} className="hover: px-4 py-2 flex items-center justify-between text-sm" key={el.id}>
-                        <span>{el.nom}</span> <span>
-                            <FluentChevronRight32Filled className="h-4 w-4" />
-                        </span>
-                    </NavLink>))
-                }
+                {sous_collection.map(el => (
+                    <NavLink
+                        to={{ pathname: `/produits/collections/${data.id}`, search: `?sous_collection=${el.id}` }}
+                        className="px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50"
+                        key={el.id}
+                    >
+                        <span>{el.nom}</span>
+                        <FluentChevronRight32Filled className="h-4 w-4" />
+                    </NavLink>
+                ))}
             </div>
         </div>
     )

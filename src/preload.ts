@@ -108,6 +108,34 @@ const authApi = {
     ipcRenderer.invoke('auth:hasPermission', action),
 };
 
+// ======================== TECHNICIENS ========================
+const techniciensApi = {
+  getById: (id: string) => ipcRenderer.invoke('techniciens:getById', id),
+  getAll: () => ipcRenderer.invoke('techniciens:getAll'),
+  create: (data: any) => ipcRenderer.invoke('techniciens:create', data),
+  update: (id: string, data: any) => ipcRenderer.invoke('techniciens:update', id, data),
+  delete: (id: string) => ipcRenderer.invoke('techniciens:delete', id),
+};
+
+// ======================== PROJETS ========================
+const projetsApi = {
+  getById: (id: string) => ipcRenderer.invoke('projets:getById', id),
+  getAll: () => ipcRenderer.invoke('projets:getAll'),
+  getByClientId: (clientId: string) => ipcRenderer.invoke('projets:getByClientId', clientId),
+  create: (data: any) => ipcRenderer.invoke('projets:create', data),
+  update: (id: string, data: any) => ipcRenderer.invoke('projets:update', id, data),
+  delete: (id: string) => ipcRenderer.invoke('projets:delete', id),
+};
+
+// ======================== TÂCHES PROJET ========================
+const tachesProjetApi = {
+  getById: (id: string) => ipcRenderer.invoke('taches-projet:getById', id),
+  getByProjetId: (projetId: string) => ipcRenderer.invoke('taches-projet:getByProjetId', projetId),
+  create: (data: any) => ipcRenderer.invoke('taches-projet:create', data),
+  update: (id: string, data: any) => ipcRenderer.invoke('taches-projet:update', id, data),
+  delete: (id: string) => ipcRenderer.invoke('taches-projet:delete', id),
+};
+
 // ======================== EXPOSE APIs VIA CONTEXT BRIDGE ========================
 contextBridge.exposeInMainWorld('db', {
   articles: articlesApi,
@@ -119,6 +147,9 @@ contextBridge.exposeInMainWorld('db', {
   factures: facturesApi,
   lignesDocuments: lignesDocumentsApi,
   images: imagesApi,
+  techniciens: techniciensApi,
+  projets: projetsApi,
+  tachesProjet: tachesProjetApi,
 });
 
 contextBridge.exposeInMainWorld('auth', authApi);
@@ -127,6 +158,8 @@ contextBridge.exposeInMainWorld('auth', authApi);
 const pdfApi = {
   generateDevis: (html: string, filename: string): Promise<string> =>
     ipcRenderer.invoke('pdf:generateDevis', html, filename),
+  generateFacture: (html: string, filename: string): Promise<string> =>
+    ipcRenderer.invoke('pdf:generateFacture', html, filename),
 };
 const shellApi = {
   openPath: (p: string): Promise<string> => ipcRenderer.invoke('shell:openPath', p),

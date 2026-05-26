@@ -41,7 +41,7 @@ export default function Screen() {
                         <NavItems icon={(actives) => actives ? <FluentReceiptMoney24Filled className=" h-6 w-6 text-white" /> : <FluentReceiptMoney24Regular className='h-6 w-6' />} url="/factures" tooltip='Factures' />
                         <NavItems icon={(actives) => actives ? <FluentClipboardDataBar32Filled className=" h-6 w-6 text-white" /> : <FluentClipboardDataBar32Regular className='h-6 w-6' />} url="/devis" tooltip='Devis' />
                         <NavItems icon={(actives) => actives ? <FluentFolderLink32Filled className=" h-6 w-6 text-white" /> : <FluentFolderLink32Regular className='h-6 w-6' />} url="/projets" tooltip='Projets' />
-                        <NavItems icon={(actives) => actives ? <FluentGridKanban20Filled className=" h-6 w-6 text-white" /> : <FluentGridKanban20Regular className='h-6 w-6' />} url="/taches" tooltip='Tâches' />
+                        {/* <NavItems icon={(actives) => actives ? <FluentGridKanban20Filled className=" h-6 w-6 text-white" /> : <FluentGridKanban20Regular className='h-6 w-6' />} url="/taches" tooltip='Tâches' /> */}
                     </div>
                 </div>
                 <div className='flex flex-col items-center gap-2 absolute bottom-4 w-full'>

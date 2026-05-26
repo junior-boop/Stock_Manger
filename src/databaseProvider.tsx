@@ -15,7 +15,10 @@ import {
     Administrateur,
     Devis,
     Facture,
-    LigneDocument
+    LigneDocument,
+    Technicien,
+    Projet,
+    TacheProjet,
 } from './Databases/db.d';
 
 type DatabaseError = {
@@ -33,6 +36,9 @@ interface DatabaseContextType {
     devis: Devis[];
     factures: Facture[];
     lignesDocuments: LigneDocument[];
+    techniciens: Technicien[];
+    projets: Projet[];
+    tachesProjet: TacheProjet[];
     isLoading: boolean;
     error: DatabaseError | null;
     refreshAll: () => Promise<void>;
@@ -48,6 +54,18 @@ interface DatabaseContextType {
     refreshFacturesByClient: (clientId: string) => Promise<void>;
     refreshLignesDocuments: () => Promise<void>;
     refreshLignesDocumentsByArticle: (articleId: string) => Promise<void>;
+    refreshTechniciens: () => Promise<void>;
+    refreshProjets: () => Promise<void>;
+    refreshTachesProjet: (projetId: string) => Promise<void>;
+    createTechnicien: (data: Partial<Technicien>) => Promise<Technicien | undefined>;
+    updateTechnicien: (id: string, data: Partial<Technicien>) => Promise<void>;
+    deleteTechnicien: (id: string) => Promise<void>;
+    createProjet: (data: Partial<Projet>) => Promise<Projet | undefined>;
+    updateProjet: (id: string, data: Partial<Projet>) => Promise<void>;
+    deleteProjet: (id: string) => Promise<void>;
+    createTacheProjet: (data: Partial<TacheProjet>) => Promise<TacheProjet | undefined>;
+    updateTacheProjet: (id: string, data: Partial<TacheProjet>) => Promise<void>;
+    deleteTacheProjet: (id: string) => Promise<void>;
     createArticle: (data: Partial<Article>) => Promise<Article | undefined>;
     updateArticle: (id: string, data: Partial<Article>) => Promise<void>;
     deleteArticle: (id: string) => Promise<void>;
@@ -85,6 +103,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const [devis, setDevis] = useState<Devis[]>([]);
     const [factures, setFactures] = useState<Facture[]>([]);
     const [lignesDocuments, setLignesDocuments] = useState<LigneDocument[]>([]);
+    const [techniciens, setTechniciens] = useState<Technicien[]>([]);
+    const [projets, setProjets] = useState<Projet[]>([]);
+    const [tachesProjet, setTachesProjet] = useState<TacheProjet[]>([]);
 
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<DatabaseError | null>(null);
@@ -211,6 +232,36 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [handleError]);
 
+    const refreshTechniciens = useCallback(async () => {
+        try {
+            const result = await window.db.techniciens.getAll();
+            setTechniciens(result || []);
+        } catch (error) {
+            handleError(error, 'refreshing techniciens');
+        }
+    }, [handleError]);
+
+    const refreshProjets = useCallback(async () => {
+        try {
+            const result = await window.db.projets.getAll();
+            setProjets(result || []);
+        } catch (error) {
+            handleError(error, 'refreshing projets');
+        }
+    }, [handleError]);
+
+    const refreshTachesProjet = useCallback(async (projetId: string) => {
+        try {
+            const result = await window.db.tachesProjet.getByProjetId(projetId);
+            setTachesProjet(prev => {
+                const filtered = prev.filter(t => t.projetId !== projetId);
+                return [...filtered, ...(result || [])];
+            });
+        } catch (error) {
+            handleError(error, 'refreshing taches projet');
+        }
+    }, [handleError]);
+
     const refreshLignesDocumentsByArticle = useCallback(async (articleId: string) => {
         try {
             const result = await window.db.lignesDocuments.getByArticleId(articleId);
@@ -235,14 +286,16 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
                 refreshAdministrateurs(),
                 refreshDevis(),
                 refreshFactures(),
-                refreshLignesDocuments()
+                refreshLignesDocuments(),
+                refreshTechniciens(),
+                refreshProjets(),
             ]);
         } catch (error) {
             handleError(error, 'refreshing all data');
         } finally {
             setIsLoading(false);
         }
-    }, [refreshArticles, refreshClients, refreshCollections, refreshSousCollections, refreshAdministrateurs, refreshDevis, refreshFactures, refreshLignesDocuments, handleError, clearError]);
+    }, [refreshArticles, refreshClients, refreshCollections, refreshSousCollections, refreshAdministrateurs, refreshDevis, refreshFactures, refreshLignesDocuments, refreshTechniciens, refreshProjets, handleError, clearError]);
 
     const createArticle = useCallback(async (data: Partial<Article>) => {
         clearError();
@@ -461,6 +514,81 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [refreshLignesDocuments]);
 
+    const createTechnicien = useCallback(async (data: Partial<Technicien>) => {
+        clearError();
+        try {
+            const result = await window.db.techniciens.create(data);
+            await refreshTechniciens();
+            return result;
+        } catch (error) { handleError(error, 'creating technicien'); }
+    }, [refreshTechniciens]);
+
+    const updateTechnicien = useCallback(async (id: string, data: Partial<Technicien>) => {
+        clearError();
+        try {
+            await window.db.techniciens.update(id, data);
+            await refreshTechniciens();
+        } catch (error) { handleError(error, 'updating technicien'); }
+    }, [refreshTechniciens]);
+
+    const deleteTechnicien = useCallback(async (id: string) => {
+        clearError();
+        try {
+            await window.db.techniciens.delete(id);
+            await refreshTechniciens();
+        } catch (error) { handleError(error, 'deleting technicien'); }
+    }, [refreshTechniciens]);
+
+    const createProjet = useCallback(async (data: Partial<Projet>) => {
+        clearError();
+        try {
+            const result = await window.db.projets.create(data);
+            await refreshProjets();
+            return result;
+        } catch (error) { handleError(error, 'creating projet'); }
+    }, [refreshProjets]);
+
+    const updateProjet = useCallback(async (id: string, data: Partial<Projet>) => {
+        clearError();
+        try {
+            await window.db.projets.update(id, data);
+            await refreshProjets();
+        } catch (error) { handleError(error, 'updating projet'); }
+    }, [refreshProjets]);
+
+    const deleteProjet = useCallback(async (id: string) => {
+        clearError();
+        try {
+            await window.db.projets.delete(id);
+            await refreshProjets();
+        } catch (error) { handleError(error, 'deleting projet'); }
+    }, [refreshProjets]);
+
+    const createTacheProjet = useCallback(async (data: Partial<TacheProjet>) => {
+        clearError();
+        try {
+            const result = await window.db.tachesProjet.create(data);
+            if (data.projetId) await refreshTachesProjet(data.projetId);
+            return result;
+        } catch (error) { handleError(error, 'creating tache projet'); }
+    }, [refreshTachesProjet]);
+
+    const updateTacheProjet = useCallback(async (id: string, data: Partial<TacheProjet>) => {
+        clearError();
+        try {
+            await window.db.tachesProjet.update(id, data);
+            if (data.projetId) await refreshTachesProjet(data.projetId);
+        } catch (error) { handleError(error, 'updating tache projet'); }
+    }, [refreshTachesProjet]);
+
+    const deleteTacheProjet = useCallback(async (id: string, projetId: string) => {
+        clearError();
+        try {
+            await window.db.tachesProjet.delete(id);
+            await refreshTachesProjet(projetId);
+        } catch (error) { handleError(error, 'deleting tache projet'); }
+    }, [refreshTachesProjet]);
+
     const loadImage = useCallback(async (filename: string): Promise<string | null> => {
 
         try {
@@ -494,6 +622,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         devis,
         factures,
         lignesDocuments,
+        techniciens,
+        projets,
+        tachesProjet,
         isLoading,
         error,
         refreshAll,
@@ -509,6 +640,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         refreshFacturesByClient,
         refreshLignesDocuments,
         refreshLignesDocumentsByArticle,
+        refreshTechniciens,
+        refreshProjets,
+        refreshTachesProjet,
         createArticle,
         updateArticle,
         deleteArticle,
@@ -530,6 +664,15 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         createLigneDocument,
         updateLigneDocument,
         deleteLigneDocument,
+        createTechnicien,
+        updateTechnicien,
+        deleteTechnicien,
+        createProjet,
+        updateProjet,
+        deleteProjet,
+        createTacheProjet,
+        updateTacheProjet,
+        deleteTacheProjet,
         loadImage,
         loadImagesForArticle,
         clearError
@@ -542,6 +685,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         devis,
         factures,
         lignesDocuments,
+        techniciens,
+        projets,
+        tachesProjet,
         isLoading,
         error,
         refreshAll,
@@ -557,6 +703,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         refreshFacturesByClient,
         refreshLignesDocuments,
         refreshLignesDocumentsByArticle,
+        refreshTechniciens,
+        refreshProjets,
+        refreshTachesProjet,
         createArticle,
         updateArticle,
         deleteArticle,
@@ -578,6 +727,15 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         createLigneDocument,
         updateLigneDocument,
         deleteLigneDocument,
+        createTechnicien,
+        updateTechnicien,
+        deleteTechnicien,
+        createProjet,
+        updateProjet,
+        deleteProjet,
+        createTacheProjet,
+        updateTacheProjet,
+        deleteTacheProjet,
         loadImage,
         loadImagesForArticle,
         clearError

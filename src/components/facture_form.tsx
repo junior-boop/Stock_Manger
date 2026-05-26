@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Article, CanalEnvoiDevis, Client, DevisEnvoi, GroupeDevis, LigneDocument, SousGroupeDevis } from '../Databases/db.d';
-import { formatDate, formatFCFA } from '../libs/format';
+import { Article, Client, LigneDocument } from '../Databases/db.d';
+import { formatFCFA } from '../libs/format';
 import { FluentAdd32Regular, FluentDelete32Regular } from '../libs/icons';
 import ClientFormModal from './client_form_modal';
-import { useAlerts } from './alerts';
 
-export type DevisFormValue = {
+export type FactureFormValue = {
     clientId: string;
     dateEmission: string;
-    dateValidite: string;
+    dateEcheance: string;
     lignes: LigneDocument[];
-    groupes: GroupeDevis[];
     remiseGlobale: number;
     notes: string;
     conditionsPaiement: string;
@@ -23,7 +21,7 @@ export type Totaux = {
     totalApreRemise: number;
 };
 
-export function computeTotaux(value: Pick<DevisFormValue, 'lignes' | 'remiseGlobale'>): Totaux {
+export function computeTotaux(value: Pick<FactureFormValue, 'lignes' | 'remiseGlobale'>): Totaux {
     const totalHT = value.lignes.reduce((s, l) => s + l.montantTotalHT, 0);
     const totalTTC = value.lignes.reduce((s, l) => s + l.montantTotalTTC, 0);
     const totalTVA = totalTTC - totalHT;
@@ -31,35 +29,23 @@ export function computeTotaux(value: Pick<DevisFormValue, 'lignes' | 'remiseGlob
     return { totalHT, totalTVA, totalTTC, totalApreRemise };
 }
 
-function sumLignes(lignes: LigneDocument[]): { ht: number; ttc: number } {
-    return lignes.reduce(
-        (s, l) => ({ ht: s.ht + l.montantTotalHT, ttc: s.ttc + l.montantTotalTTC }),
-        { ht: 0, ttc: 0 },
-    );
-}
-
-export function makeLigneFromArticle(article: Article, target?: LigneTarget, quantite = 1): LigneDocument {
+export function makeLigneFromArticle(article: Article, quantite = 1): LigneDocument {
     const remise = 0;
-    const prixUnitaireHT = article.prixHT;
-    const prixUnitaireTTC = article.prixTTC;
     const factor = 1 - remise / 100;
-    const base: LigneDocument = {
+    return {
         id: crypto.randomUUID(),
         articleId: article.id,
         designation: article.nom,
         reference: article.reference,
         quantite,
         unite: article.unite,
-        prixUnitaireHT,
+        prixUnitaireHT: article.prixHT,
         tauxTVA: article.tauxTVA,
-        prixUnitaireTTC,
-        montantTotalHT: prixUnitaireHT * quantite * factor,
-        montantTotalTTC: prixUnitaireTTC * quantite * factor,
+        prixUnitaireTTC: article.prixTTC,
+        montantTotalHT: article.prixHT * quantite * factor,
+        montantTotalTTC: article.prixTTC * quantite * factor,
         remise,
     };
-    if (target?.groupeId) base.groupeId = target.groupeId;
-    if (target?.sousGroupeId) base.sousGroupeId = target.sousGroupeId;
-    return base;
 }
 
 export function recomputeLigne(l: LigneDocument): LigneDocument {
@@ -71,20 +57,23 @@ export function recomputeLigne(l: LigneDocument): LigneDocument {
     };
 }
 
-type LigneTarget = { groupeId?: string; sousGroupeId?: string };
+export function flattenLignes(lignes: LigneDocument[]): LigneDocument[] {
+    return lignes.map((l) => {
+        const { groupeId: _g, sousGroupeId: _sg, ...rest } = l;
+        return rest as LigneDocument;
+    });
+}
 
 type Props = {
-    value: DevisFormValue;
-    onChange: (next: DevisFormValue) => void;
+    value: FactureFormValue;
+    onChange: (next: FactureFormValue) => void;
     clients: Client[];
     articles: Article[];
     readOnly?: boolean;
     lockClient?: boolean;
-    envois?: DevisEnvoi[];
 };
 
-export default function DevisForm({ value, onChange, clients, articles, readOnly, lockClient, envois }: Props) {
-    const { confirm } = useAlerts();
+export default function FactureForm({ value, onChange, clients, articles, readOnly, lockClient }: Props) {
     const totaux = useMemo(() => computeTotaux(value), [value]);
 
     const updateLigne = (id: string, patch: Partial<LigneDocument>) => {
@@ -96,110 +85,14 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
         onChange({ ...value, lignes: value.lignes.filter((l) => l.id !== id) });
     };
 
-    const addLigne = (article: Article, target?: LigneTarget) => {
-        onChange({ ...value, lignes: [...value.lignes, makeLigneFromArticle(article, target)] });
+    const addLigne = (article: Article) => {
+        onChange({ ...value, lignes: [...value.lignes, makeLigneFromArticle(article)] });
     };
-
-    const addGroupe = () => {
-        const groupe: GroupeDevis = {
-            id: crypto.randomUUID(),
-            nom: 'Nouveau groupe',
-            ordre: value.groupes.length,
-            sousGroupes: [],
-        };
-        onChange({ ...value, groupes: [...value.groupes, groupe] });
-    };
-
-    const updateGroupe = (id: string, patch: Partial<GroupeDevis>) => {
-        onChange({
-            ...value,
-            groupes: value.groupes.map((g) => (g.id === id ? { ...g, ...patch } : g)),
-        });
-    };
-
-    const removeGroupe = async (id: string) => {
-        const lignesDuGroupe = value.lignes.filter((l) => l.groupeId === id);
-        let keepLines = false;
-        if (lignesDuGroupe.length > 0) {
-            const ans = await confirm({
-                title: `Supprimer ce groupe ?`,
-                message: `Le groupe contient ${lignesDuGroupe.length} ligne(s).\nConfirmer = supprimer le groupe ET ses lignes.\nAnnuler = détacher les lignes et garder uniquement.`,
-                confirmLabel: 'Supprimer tout',
-                cancelLabel: 'Détacher',
-                danger: true,
-            });
-            keepLines = !ans;
-        }
-        const nextLignes = keepLines
-            ? value.lignes.map((l) => {
-                if (l.groupeId !== id) return l;
-                const { groupeId: _g, sousGroupeId: _sg, ...rest } = l;
-                return rest as LigneDocument;
-            })
-            : value.lignes.filter((l) => l.groupeId !== id);
-        onChange({
-            ...value,
-            groupes: value.groupes.filter((g) => g.id !== id),
-            lignes: nextLignes,
-        });
-    };
-
-    const addSousGroupe = (groupeId: string) => {
-        const groupe = value.groupes.find((g) => g.id === groupeId);
-        if (!groupe) return;
-        const sg: SousGroupeDevis = {
-            id: crypto.randomUUID(),
-            nom: 'Nouveau sous-groupe',
-            ordre: groupe.sousGroupes.length,
-        };
-        updateGroupe(groupeId, { sousGroupes: [...groupe.sousGroupes, sg] });
-    };
-
-    const updateSousGroupe = (groupeId: string, sgId: string, patch: Partial<SousGroupeDevis>) => {
-        const groupe = value.groupes.find((g) => g.id === groupeId);
-        if (!groupe) return;
-        updateGroupe(groupeId, {
-            sousGroupes: groupe.sousGroupes.map((sg) => (sg.id === sgId ? { ...sg, ...patch } : sg)),
-        });
-    };
-
-    const removeSousGroupe = async (groupeId: string, sgId: string) => {
-        const groupe = value.groupes.find((g) => g.id === groupeId);
-        if (!groupe) return;
-        const lignesDuSG = value.lignes.filter((l) => l.sousGroupeId === sgId);
-        let keepLines = false;
-        if (lignesDuSG.length > 0) {
-            const ans = await confirm({
-                title: 'Supprimer ce sous-groupe ?',
-                message: `Le sous-groupe contient ${lignesDuSG.length} ligne(s).\nConfirmer = supprimer le sous-groupe ET ses lignes.\nAnnuler = garder les lignes dans le groupe parent.`,
-                confirmLabel: 'Supprimer tout',
-                cancelLabel: 'Détacher',
-                danger: true,
-            });
-            keepLines = !ans;
-        }
-        const nextLignes = keepLines
-            ? value.lignes.map((l) => {
-                if (l.sousGroupeId !== sgId) return l;
-                const { sousGroupeId: _sg, ...rest } = l;
-                return rest as LigneDocument;
-            })
-            : value.lignes.filter((l) => l.sousGroupeId !== sgId);
-        onChange({
-            ...value,
-            groupes: value.groupes.map((g) => g.id === groupeId
-                ? { ...g, sousGroupes: g.sousGroupes.filter((sg) => sg.id !== sgId) }
-                : g),
-            lignes: nextLignes,
-        });
-    };
-
-    const orphanLignes = value.lignes.filter((l) => !l.groupeId);
 
     const ligneActions = { updateLigne, removeLigne, readOnly };
 
     return (
-        <div className="space-y-6 mx-auto max-w-270 w-full">
+        <div className="space-y-6 mx-auto max-w-270">
             <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
                 <div className="text-xs uppercase text-gray-400 font-medium">Client & dates</div>
                 <div className="grid grid-cols-4 gap-3">
@@ -223,12 +116,12 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
                         />
                     </label>
                     <label className="block">
-                        <span className="text-xs text-gray-500">Date de validité</span>
+                        <span className="text-xs text-gray-500">Date d'échéance</span>
                         <input
                             disabled={readOnly}
                             type="date"
-                            value={value.dateValidite}
-                            onChange={(e) => onChange({ ...value, dateValidite: e.target.value })}
+                            value={value.dateEcheance}
+                            onChange={(e) => onChange({ ...value, dateEcheance: e.target.value })}
                             className="mt-1 w-full h-10 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
                         />
                     </label>
@@ -237,128 +130,22 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
 
             <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
                 <div className="flex items-center justify-between">
-                    <div className="text-xs uppercase text-gray-400 font-medium">Articles & groupes</div>
+                    <div className="text-xs uppercase text-gray-400 font-medium">Articles</div>
                     {!readOnly && (
-                        <div className="flex items-center gap-2">
-                            <ArticlePicker
-                                articles={articles}
-                                onPick={(a) => addLigne(a)}
-                                label="Ajouter une ligne"
-                            />
-                            <button
-                                onClick={addGroupe}
-                                className="h-9 px-4 rounded-full bg-slate-100 hover:bg-slate-200 text-sm flex items-center gap-1"
-                            >
-                                <FluentAdd32Regular className="h-4 w-4" />
-                                Groupe
-                            </button>
-                        </div>
+                        <ArticlePicker
+                            articles={articles}
+                            onPick={(a) => addLigne(a)}
+                            label="Ajouter une ligne"
+                        />
                     )}
                 </div>
 
-                {orphanLignes.length > 0 && (
-                    <LignesBlock
-                        lignes={orphanLignes}
-                        actions={ligneActions}
-                    />
-                )}
-
-                {value.groupes.map((g) => {
-                    const lignesGroupe = value.lignes.filter((l) => l.groupeId === g.id);
-                    const totalGroupe = sumLignes(lignesGroupe);
-                    const lignesDirectes = lignesGroupe.filter((l) => !l.sousGroupeId);
-
-                    return (
-                        <div key={g.id} className="border border-slate-200 rounded-lg bg-slate-50/40">
-                            <div className="px-4 py-3 bg-slate-100/60 flex items-center gap-2">
-                                <input
-                                    disabled={readOnly}
-                                    value={g.nom}
-                                    onChange={(e) => updateGroupe(g.id, { nom: e.target.value })}
-                                    className="flex-1 bg-transparent text-sm font-semibold focus:outline-none border-b border-transparent focus:border-slate-400"
-                                />
-                                <span className="text-xs text-gray-500">Sous-total : <strong className="text-slate-800">{formatFCFA(totalGroupe.ttc)}</strong></span>
-                                {!readOnly && (
-                                    <>
-                                        <ArticlePicker
-                                            articles={articles}
-                                            onPick={(a) => addLigne(a, { groupeId: g.id })}
-                                            label="Article"
-                                            compact
-                                        />
-                                        <button
-                                            onClick={() => addSousGroupe(g.id)}
-                                            className="h-7 px-2 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs"
-                                        >
-                                            + Sous-groupe
-                                        </button>
-                                        <button
-                                            onClick={() => removeGroupe(g.id)}
-                                            className="text-gray-400 hover:text-red-600"
-                                            title="Supprimer le groupe"
-                                        >
-                                            <FluentDelete32Regular className="h-4 w-4" />
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-
-                            <div className="p-3 space-y-3">
-                                {lignesDirectes.length > 0 && (
-                                    <LignesBlock lignes={lignesDirectes} actions={ligneActions} />
-                                )}
-
-                                {g.sousGroupes.map((sg) => {
-                                    const lignesSG = lignesGroupe.filter((l) => l.sousGroupeId === sg.id);
-                                    const totalSG = sumLignes(lignesSG);
-                                    return (
-                                        <div key={sg.id} className="border border-slate-200 rounded-xl bg-white overflow-hidden">
-                                            <div className="px-3 py-2 bg-white border-b border-slate-100 flex items-center gap-2">
-                                                <span className="text-xs text-gray-400">↳</span>
-                                                <input
-                                                    disabled={readOnly}
-                                                    value={sg.nom}
-                                                    onChange={(e) => updateSousGroupe(g.id, sg.id, { nom: e.target.value })}
-                                                    className="flex-1 bg-transparent text-sm font-medium focus:outline-none border-b border-transparent focus:border-slate-400"
-                                                />
-                                                <span className="text-xs text-gray-500">{formatFCFA(totalSG.ttc)}</span>
-                                                {!readOnly && (
-                                                    <>
-                                                        <ArticlePicker
-                                                            articles={articles}
-                                                            onPick={(a) => addLigne(a, { groupeId: g.id, sousGroupeId: sg.id })}
-                                                            label="+ Article"
-                                                            compact
-                                                        />
-                                                        <button
-                                                            onClick={() => removeSousGroupe(g.id, sg.id)}
-                                                            className="text-gray-400 hover:text-red-600"
-                                                            title="Supprimer le sous-groupe"
-                                                        >
-                                                            <FluentDelete32Regular className="h-4 w-4" />
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                            <div className="p-2">
-                                                {lignesSG.length === 0 ? (
-                                                    <div className="text-xs text-gray-400 text-center py-3">Aucun article dans ce sous-groupe.</div>
-                                                ) : (
-                                                    <LignesBlock lignes={lignesSG} actions={ligneActions} />
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {value.lignes.length === 0 && value.groupes.length === 0 && (
+                {value.lignes.length === 0 ? (
                     <div className="text-sm text-gray-400 text-center py-6">
-                        Aucun article — ajoute une ligne ou crée un groupe pour commencer.
+                        Aucun article — ajoute une ligne pour commencer.
                     </div>
+                ) : (
+                    <LignesBlock lignes={value.lignes} actions={ligneActions} />
                 )}
             </section>
 
@@ -391,7 +178,7 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
                 </div>
             </section>
 
-            <section className="bg-white rounded-2xl border border-slate-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* <section className="bg-white rounded-2xl border border-slate-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label className="block">
                     <span className="text-xs text-gray-500">Notes</span>
                     <textarea
@@ -412,41 +199,9 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
                         className="mt-1 w-full px-4 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
                     />
                 </label>
-            </section>
-
-            {readOnly && envois && envois.length > 0 && (
-                <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-5 py-3 border-b border-slate-100 text-xs font-semibold uppercase text-gray-400 tracking-wide">
-                        Historique d'envoi
-                    </div>
-                    <ul className="divide-y divide-slate-100">
-                        {[...envois]
-                            .sort((a, b) => (a.date < b.date ? 1 : -1))
-                            .map((e) => (
-                                <li key={e.id} className="px-5 py-3 flex items-center gap-3 text-sm">
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                                        {canalLabel(e.canal)}
-                                    </span>
-                                    <span className="text-gray-600">{formatDate(e.date)}</span>
-                                    <span className="flex-1" />
-                                    <span className="text-xs text-gray-400">
-                                        {new Date(e.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </li>
-                            ))}
-                    </ul>
-                </section>
-            )}
+            </section> */}
         </div>
     );
-}
-
-function canalLabel(c: CanalEnvoiDevis): string {
-    switch (c) {
-        case 'pdf': return 'PDF';
-        case 'whatsapp': return 'WhatsApp';
-        case 'manuel': return 'Manuel';
-    }
 }
 
 type LigneActions = {
@@ -533,12 +288,10 @@ function ArticlePicker({
     articles,
     onPick,
     label = 'Ajouter un article',
-    compact = false,
 }: {
     articles: Article[];
     onPick: (a: Article) => void;
     label?: string;
-    compact?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -553,14 +306,10 @@ function ArticlePicker({
         }).slice(0, 20);
     }, [articles, query]);
 
-    const btnClass = compact
-        ? 'h-7 px-2 rounded-full bg-slate-900 text-white text-xs flex items-center gap-1'
-        : 'h-9 px-4 rounded-full bg-slate-900 text-white text-sm flex items-center gap-2';
-
     return (
         <div className="relative">
-            <button onClick={() => setOpen((v) => !v)} className={btnClass}>
-                <FluentAdd32Regular className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
+            <button onClick={() => setOpen((v) => !v)} className="h-9 px-4 rounded-full bg-slate-900 text-white text-sm flex items-center gap-2">
+                <FluentAdd32Regular className="h-4 w-4" />
                 {label}
             </button>
             {open && (
@@ -570,7 +319,7 @@ function ArticlePicker({
                         <input
                             autoFocus
                             type="text"
-                            placeholder="Chercher par nom ou référence (ex. CAR0001)…"
+                            placeholder="Chercher par nom ou référence…"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             className="w-full h-9 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
