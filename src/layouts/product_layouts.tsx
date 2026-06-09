@@ -7,9 +7,10 @@ import { useDatabase } from "../databaseProvider"
 
 import { create } from 'zustand'
 import { Collection } from "../Databases/db.d";
-import { openNewProductWindow } from "../context/open_product";
+import { openNewProductWindow, useImportExcelStore } from "../context/open_product";
 import NewProduct from "../pages/new_product";
 import { useAlerts } from "../components/alerts";
+import { FluentCloudArrowUp32Regular, FluentArrowDownload32Filled } from "../libs/icons";
 
 type OpenLayout = {
     get: boolean
@@ -129,14 +130,50 @@ export default function ProductLayouts() {
 }
 
 const HomeGroupPage = () => {
+    const { set_import } = useImportExcelStore()
+    const { success, error: notifyError } = useAlerts()
+    const [isExporting, setIsExporting] = useState(false)
+
+    const handleExport = async () => {
+        if (isExporting) return
+        setIsExporting(true)
+        try {
+            const res = await window.exportApi.articlesExcel()
+            if (res.canceled) return
+            success("Export terminé", `${res.count ?? 0} article(s) exporté(s) vers ${res.filePath}`)
+        } catch (e) {
+            console.error(e)
+            notifyError("Export échoué", "Impossible d'exporter les articles en Excel.")
+        } finally {
+            setIsExporting(false)
+        }
+    }
+
     return (
         <div className="h-dvh flex-1 overflow-x-hidden overflow-y-auto">
-            <div className="px-4 py-4">
-                <div className="mt-8">
-                    {/* <Subtitle title="Recents" /> */}
+            <div className="px-10 py-10 flex flex-col gap-8">
+                <div>
+                    <h1 className="text-4xl font-light">Produits</h1>
+                    <p className="text-sm text-gray-400 mt-1">Sélectionnez une collection à gauche ou importez vos produits depuis un fichier Excel.</p>
                 </div>
-                <div className="px-3">
-
+                <div className="flex gap-3">
+                    <button
+                        onClick={set_import}
+                        className="flex items-center gap-3 px-5 py-3 bg-slate-800 text-white rounded-full hover:bg-slate-900"
+                    >
+                        <FluentCloudArrowUp32Regular className="h-5 w-5" />
+                        <span>Importer depuis Excel</span>
+                    </button>
+                    <button
+                        onClick={handleExport}
+                        disabled={isExporting}
+                        className="flex items-center gap-3 px-5 py-3 bg-white border border-slate-200 text-slate-800 rounded-full hover:bg-slate-50 disabled:opacity-60"
+                    >
+                        {isExporting
+                            ? <SvgSpinners180Ring className="h-5 w-5" />
+                            : <FluentArrowDownload32Filled className="h-5 w-5" />}
+                        <span>{isExporting ? "Export en cours…" : "Exporter en Excel"}</span>
+                    </button>
                 </div>
             </div>
         </div>

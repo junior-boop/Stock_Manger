@@ -40,9 +40,68 @@ declare global {
       logout: () => Promise<{ ok: boolean }>;
       me: () => Promise<any | null>;
       hasPermission: (action: string) => Promise<boolean>;
+      createUser: (data: {
+        nom: string;
+        prenom: string;
+        email: string;
+        telephone?: string;
+        role: 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur';
+        motDePasse: string;
+        statut?: 'actif' | 'inactif' | 'archivé';
+      }) => Promise<{ ok: boolean; error?: string; user?: any }>;
+      updateUserPassword: (id: string, motDePasse: string) => Promise<{ ok: boolean; error?: string }>;
+    };
+    exportApi: {
+      articlesExcel: () => Promise<{ canceled: boolean; filePath?: string; count?: number }>;
+    };
+    companyApi: {
+      get: () => Promise<CompanyInfo>;
+      set: (data: Partial<CompanyInfo>) => Promise<CompanyInfo>;
+    };
+    syncApi: {
+      getConfig: () => Promise<SyncConfigShape>;
+      setConfig: (data: Partial<SyncConfigShape>) => Promise<SyncConfigShape>;
+      login: (email: string, motDePasse: string) => Promise<{ ok: boolean; user?: { id: string; email: string; nom: string; role: string }; error?: string }>;
+      logout: () => Promise<{ ok: boolean }>;
+      testConnection: () => Promise<{ ok: boolean; data?: { ok: boolean; time: number }; error?: string }>;
+      initServer: () => Promise<{ ok: boolean; data?: unknown; error?: string }>;
+      markLastSync: () => Promise<SyncConfigShape>;
     };
   }
 }
+
+export type SyncConfigShape = {
+  serverUrl: string;
+  token: string;
+  clientId: string;
+  enabled: boolean;
+  syncInterval: number;
+  lastSyncAt: string | null;
+};
+
+export type CustomField = {
+  id: string;
+  type: 'email' | 'tel' | 'url' | 'address' | 'text';
+  label: string;
+  value: string;
+};
+export type CompanyInfo = {
+  nom: string;
+  adresse: string;
+  telephone: string;
+  email: string;
+  logoDataUrl: string;
+  notesDevis: string;
+  notesFacture: string;
+  conditionsPaiement: string;
+  setupDone: boolean;
+  customFields: CustomField[];
+  devisPrefix: string;
+  facturePrefix: string;
+  numeroFormat: string;
+  tvaDefault: number;
+  devise: string;
+};
 
 // Réexport les APIs pour plus de commodité
 export const db = window.db;

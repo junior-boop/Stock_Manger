@@ -83,72 +83,41 @@ function UserList() {
     const { user: current, logout } = useAuth();
     const [users, setUsers] = useState<SidebarUser[]>([]);
     const [openId, setOpenId] = useState<string | null>(null);
-    const [stackOpen, setStackOpen] = useState(false);
 
     useEffect(() => {
         window.db.administrateurs.getAll().then((rows: SidebarUser[]) => setUsers(rows ?? []));
     }, [current?.id]);
 
     const presence = usePresence(users.map((u) => u.id));
-    const admins = users.filter((u) => u.role === 'super_admin' || u.role === 'admin');
-    const others = users.filter((u) => u.role !== 'super_admin' && u.role !== 'admin');
+    const me = current ? users.find((u) => u.id === current.id) : null;
+    const others = users.filter((u) => u.id !== current?.id);
 
     const toggle = (id: string) => setOpenId((v) => (v === id ? null : id));
 
     return (
         <div className="flex flex-col items-center gap-2 w-full">
-            {admins.map((u) => (
+            {me && (
+                <UserAvatar
+                    key={me.id}
+                    user={me}
+                    presence={presence[me.id]}
+                    isCurrent
+                    open={openId === me.id}
+                    onToggle={() => toggle(me.id)}
+                    onLogout={logout}
+                />
+            )}
+            {others.map((u) => (
                 <UserAvatar
                     key={u.id}
                     user={u}
                     presence={presence[u.id]}
-                    isCurrent={u.id === current?.id}
+                    isCurrent={false}
                     open={openId === u.id}
                     onToggle={() => toggle(u.id)}
                     onLogout={logout}
                 />
             ))}
-
-            {others.length > 0 && (
-                <div className="relative w-full flex justify-center">
-                    <button
-                        onClick={() => setStackOpen((v) => !v)}
-                        className="relative w-9 flex flex-col items-center"
-                        title={`${others.length} autre${others.length > 1 ? 's' : ''} utilisateur${others.length > 1 ? 's' : ''}`}
-                    >
-                        {others.slice(0, 3).map((u, i) => (
-                            <span
-                                key={u.id}
-                                className="w-7 h-7 rounded-full bg-slate-500 text-white text-[10px] font-semibold flex items-center justify-center ring-2 ring-white"
-                                style={{ marginTop: i === 0 ? 0 : -14 }}
-                            >
-                                {initials(u)}
-                            </span>
-                        ))}
-                        {others.length > 3 && (
-                            <span className="text-[10px] text-gray-500 mt-0.5">+{others.length - 3}</span>
-                        )}
-                    </button>
-                    {stackOpen && (
-                        <div className="absolute bottom-0 left-14 w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 max-h-72 overflow-y-auto">
-                            {others.map((u) => (
-                                <div key={u.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg">
-                                    <div className="relative">
-                                        <span className="w-8 h-8 rounded-full bg-slate-500 text-white text-xs font-semibold flex items-center justify-center">
-                                            {initials(u)}
-                                        </span>
-                                        <PresenceDot status={presence[u.id]} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="text-sm font-medium truncate">{u.prenom} {u.nom}</div>
-                                        <div className="text-xs text-gray-400 truncate">{u.role}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
         </div>
     );
 }

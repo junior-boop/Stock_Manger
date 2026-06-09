@@ -7,6 +7,7 @@ import {
     useMemo,
     useState,
 } from 'react';
+import { syncClient } from '../context/sync_client';
 
 export type SessionUser = {
     id: string;
@@ -101,13 +102,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return false;
         }
         setUser(res.user ?? null);
+        const role = res.user?.role ?? null;
+        void syncClient
+            .start()
+            .then(() => syncClient.bootstrapIfEmpty(role))
+            .catch(() => undefined);
         return true;
     }, []);
 
     const logout = useCallback(async () => {
+        syncClient.stop();
         await window.auth.logout();
         setUser(null);
     }, []);
+
+    useEffect(() => {
+        if (user) {
+            const role = user.role;
+            void syncClient
+                .start()
+                .then(() => syncClient.bootstrapIfEmpty(role))
+                .catch(() => undefined);
+        } else {
+            syncClient.stop();
+        }
+    }, [user]);
 
     const value = useMemo(
         () => ({ user, isSetupDone, isLoading, error, setup, login, logout, refresh, clearError }),

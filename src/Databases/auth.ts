@@ -165,3 +165,57 @@ export function requirePermission(action: string): SessionUser {
   }
   return user;
 }
+
+export async function createUser(data: {
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone?: string;
+  role: RoleAdmin;
+  motDePasse: string;
+  statut?: 'actif' | 'inactif' | 'archivé';
+}): Promise<{ ok: boolean; error?: string; user?: SessionUser }> {
+  if (!hasPermission('admins:manage')) {
+    return { ok: false, error: 'Permission refusée' };
+  }
+  if (!data.email || !data.motDePasse || !data.nom || !data.prenom || !data.role) {
+    return { ok: false, error: 'Champs requis manquants' };
+  }
+  if (data.motDePasse.length < 6) {
+    return { ok: false, error: 'Mot de passe trop court (minimum 6 caractères)' };
+  }
+  const admins = await getAllAdministrateurs();
+  if (admins?.some((a) => a.email.toLowerCase() === data.email.toLowerCase())) {
+    return { ok: false, error: 'Email déjà utilisé' };
+  }
+  const created = createAdministrateur({
+    nom: data.nom,
+    prenom: data.prenom,
+    email: data.email,
+    telephone: data.telephone,
+    role: data.role,
+    motDePasseHash: hashPassword(data.motDePasse),
+    avatar: undefined,
+    statut: data.statut ?? 'actif',
+    derniereConnexion: undefined,
+  } as unknown as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>);
+  if (!created) return { ok: false, error: 'Erreur lors de la création' };
+  return { ok: true, user: stripHash(created as unknown as Administrateur) };
+}
+
+export async function updateUserPassword(
+  id: string,
+  motDePasse: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!hasPermission('admins:manage')) {
+    return { ok: false, error: 'Permission refusée' };
+  }
+  if (!motDePasse || motDePasse.length < 6) {
+    return { ok: false, error: 'Mot de passe trop court (minimum 6 caractères)' };
+  }
+  const result = updateAdministrateur(id, {
+    motDePasseHash: hashPassword(motDePasse),
+  } as Partial<Administrateur>);
+  if (!result) return { ok: false, error: 'Erreur lors de la mise à jour' };
+  return { ok: true };
+}

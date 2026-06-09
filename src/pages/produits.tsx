@@ -121,7 +121,7 @@ export function ProductItems({ data }: { data: Partial<Article> }) {
                 <img src={images as string} className="object-cover w-full h-full" />
             </span>
             <span className="flex w-full flex-col">
-                <span className=" font-semibold uppercase">{data.nom}</span>
+                <span className="text-sm font-semibold uppercase">{data.nom}</span>
                 <span className="text-xs font-semibold flex gap-2 mb-2">
                     <span>L. : {dimensions.longueur}cm</span>
                     <span>l. : {dimensions.largeur}cm</span>
@@ -129,6 +129,7 @@ export function ProductItems({ data }: { data: Partial<Article> }) {
                 </span>
                 <span className="text-gray-600 text-sm">Prix : {Prix}</span>
                 <span className="text-gray-600 text-sm">Ref : {data.reference}</span>
+                <span className="text-gray-600 text-sm">Stock : {data.stockTotal}</span>
             </span>
         </NavLink>
     )

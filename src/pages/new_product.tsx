@@ -191,8 +191,6 @@ export default function NewProduct() {
         };
 
         await createArticle(newArticle);
-        const listeArticles = articles.filter(el => el.collectionId === id)
-        await updateCollection(id as string, { quantite: listeArticles.length + 1 })
         open_set();
     };
 

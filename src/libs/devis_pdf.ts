@@ -1,12 +1,54 @@
 import { Client, Devis, LigneDocument } from '../Databases/db.d';
 import { formatDate, formatFCFA, numberToWordsFr } from './format';
 
-const COMPANY = {
+type CustomField = {
+    id: string;
+    type: 'email' | 'tel' | 'url' | 'address' | 'text';
+    label: string;
+    value: string;
+};
+
+type CompanyPdfInfo = {
+    nom: string;
+    adresse: string;
+    telephone: string;
+    email: string;
+    logoDataUrl: string;
+    notesDevis: string;
+    notesFacture: string;
+    conditionsPaiement: string;
+    customFields: CustomField[];
+};
+
+let COMPANY: CompanyPdfInfo = {
     nom: 'Kataleya',
     adresse: 'Douala, Cameroun',
     telephone: '+237 6XX XX XX XX',
     email: 'contact@kataleya.com',
+    logoDataUrl: '',
+    notesDevis: '',
+    notesFacture: '',
+    conditionsPaiement: '',
+    customFields: [],
 };
+
+export function setDevisCompanyInfo(info: Partial<CompanyPdfInfo>) {
+    COMPANY = { ...COMPANY, ...info };
+}
+
+function renderCustomFields(): string {
+    if (!COMPANY.customFields?.length) return '';
+    return COMPANY.customFields
+        .filter((f) => f.value?.trim())
+        .map((f) => {
+            const lbl = f.label?.trim() ? `${escLocal(f.label)} : ` : '';
+            return `<div>${lbl}${escLocal(f.value)}</div>`;
+        })
+        .join('');
+}
+function escLocal(s: unknown): string {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 function esc(s: unknown): string {
     if (s === null || s === undefined) return '';
@@ -110,6 +152,8 @@ function renderGroupedLignes(devis: Devis): string {
 
 export function buildDevisHTML(devis: Devis, client: Client | undefined): string {
     const remiseAmount = devis.totalTTC - devis.totalApreRemise;
+    const conditionsPaiement = devis.conditionsPaiement || COMPANY.conditionsPaiement;
+    const notes = devis.notes || COMPANY.notesDevis;
     return `<!doctype html>
 <html lang="fr">
 <head>
@@ -160,11 +204,15 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined): string
 </head>
 <body>
     <div class="header">
-        <div>
-            <div class="company-name">${esc(COMPANY.nom)}</div>
-            <div class="company-info">
-                ${esc(COMPANY.adresse)}<br/>
-                ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+        <div style="display:flex;align-items:center;gap:14px;">
+            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:56px;max-width:140px;object-fit:contain;" />` : ''}
+            <div>
+                <div class="company-name">${esc(COMPANY.nom)}</div>
+                <div class="company-info">
+                    ${esc(COMPANY.adresse)}<br/>
+                    ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+                    ${renderCustomFields()}
+                </div>
             </div>
         </div>
         <div class="devis-meta">
@@ -203,18 +251,18 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined): string
         (${esc(formatFCFA(devis.totalApreRemise))}) toutes taxes comprises.
     </div>
 
-    ${devis.notes || devis.conditionsPaiement ? `
+    ${notes || conditionsPaiement ? `
         <div class="footer">
-            ${devis.conditionsPaiement ? `
+            ${conditionsPaiement ? `
                 <div class="footer-section">
                     <div class="label">Conditions de paiement</div>
-                    <div>${esc(devis.conditionsPaiement)}</div>
+                    <div>${esc(conditionsPaiement)}</div>
                 </div>
             ` : ''}
-            ${devis.notes ? `
+            ${notes ? `
                 <div class="footer-section">
                     <div class="label">Notes</div>
-                    <div>${esc(devis.notes)}</div>
+                    <div>${esc(notes)}</div>
                 </div>
             ` : ''}
         </div>

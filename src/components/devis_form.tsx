@@ -564,7 +564,7 @@ function ArticlePicker({
                 {label}
             </button>
             {open && (
-                <>
+                <div>
                     <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
                     <div className="absolute right-0 mt-2 w-120 bg-white border border-slate-200 rounded-2xl shadow-lg p-3 z-50">
                         <input
@@ -578,30 +578,33 @@ function ArticlePicker({
                         <div className="mt-2 max-h-72 overflow-y-auto">
                             {filtered.length === 0 ? (
                                 <div className="text-sm text-gray-400 text-center py-6">Aucun article.</div>
-                            ) : filtered.map((a) => {
-                                const outOfStock = (a.stockTotal ?? 0) <= 0;
-                                return (
-                                    <button
-                                        key={a.id}
-                                        onClick={() => { onPick(a); setOpen(false); setQuery(''); }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 ${outOfStock ? 'opacity-50' : ''}`}
-                                    >
-                                        <div className="text-sm font-medium truncate flex items-center gap-2">
-                                            <span className="truncate">{a.nom}</span>
-                                            {outOfStock && (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600">Rupture</span>
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-gray-500 flex justify-between">
-                                            <span>{a.reference} · Qte : {a.stockTotal}</span>
-                                            <span>{formatFCFA(a.prixTTC)}</span>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                            ) : (
+                                <div>
+                                    {filtered.map((a, idx) => {
+                                        const outOfStock = (a.stockTotal ?? 0) <= 0;
+                                        return (
+                                            <button
+                                                key={a.id || `art-${idx}`}
+                                                type="button"
+                                                onClick={() => { onPick(a); setOpen(false); setQuery(''); }}
+                                                className={`w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 ${outOfStock ? 'opacity-50' : ''}`}
+                                            >
+                                                <div className="text-sm font-medium truncate flex items-center gap-2">
+                                                    <span className="truncate">{a.nom}</span>
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 ${outOfStock ? '' : 'invisible'}`}>Rupture</span>
+                                                </div>
+                                                <div className="text-xs text-gray-500 flex justify-between">
+                                                    <span>{a.reference} · Qte : {a.stockTotal}</span>
+                                                    <span>{formatFCFA(a.prixTTC)}</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );

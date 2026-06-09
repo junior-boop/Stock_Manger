@@ -19,3 +19,13 @@ export const OpenSousCollection = create<OpenSousCollection>()((set) => ({
     open_sous: false,
     set_sous: () => set((state) => ({ open_sous: !state.open_sous })),
 }))
+
+type OpenImportExcel = {
+    open_import: boolean
+    set_import: () => void
+}
+
+export const useImportExcelStore = create<OpenImportExcel>()((set) => ({
+    open_import: false,
+    set_import: () => set((state) => ({ open_import: !state.open_import })),
+}))

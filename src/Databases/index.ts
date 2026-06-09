@@ -504,25 +504,7 @@ const Devis = db.createModel<Devis>("devis", {
   createdBy: "TEXT NOT NULL",
 });
 
-const createDevisTable = async () => {
-  await Devis.createTable();
-  try {
-    orm.run("ALTER TABLE devis ADD COLUMN groupes TEXT");
-  } catch {
-    // Colonne déjà présente
-  }
-  migrateDevisTable();
-};
 
-function migrateDevisTable() {
-  try {
-    orm.exec("ALTER TABLE devis ADD COLUMN envois TEXT NOT NULL DEFAULT '[]'");
-  } catch (e: any) {
-    if (!/duplicate column name/i.test(e?.message ?? "")) {
-      console.error("Migration devis.envois:", e);
-    }
-  }
-}
 
 function parseDevis(row: any): Devis | null {
   if (!row) return row;
@@ -657,18 +639,18 @@ const Factures = db.createModel<Facture>("factures", {
 
 const createFacturesTable = async () => {
   await Factures.createTable();
-  migrateFacturesTable();
+  // migrateFacturesTable();
 };
 
-function migrateFacturesTable() {
-  try {
-    orm.exec("ALTER TABLE factures ADD COLUMN groupes TEXT NOT NULL DEFAULT '[]'");
-  } catch (e: any) {
-    if (!/duplicate column name/i.test(e?.message ?? "")) {
-      console.error("Migration factures.groupes:", e);
-    }
-  }
-}
+// function migrateFacturesTable() {
+//   try {
+//     orm.exec("ALTER TABLE factures ADD COLUMN groupes TEXT NOT NULL DEFAULT '[]'");
+//   } catch (e: any) {
+//     if (!/duplicate column name/i.test(e?.message ?? "")) {
+//       console.error("Migration factures.groupes:", e);
+//     }
+//   }
+// }
 
 function parseFacture(row: any): Facture | null {
   if (!row) return row;
@@ -1033,6 +1015,7 @@ const TachesProjet = db.createModel<TacheProjet>("taches_projet", {
   statut: "TEXT NOT NULL",
   priorite: "TEXT NOT NULL",
   technicienIds: "TEXT NOT NULL DEFAULT '[]'",
+  dateDebut: "DATETIME",
   dateEcheance: "DATETIME",
   ordre: "INTEGER NOT NULL DEFAULT 0",
   createdAt: "DATETIME DEFAULT CURRENT_TIMESTAMP",
@@ -1073,6 +1056,7 @@ export function createTacheProjet(data: Omit<TacheProjet, "id" | "createdAt" | "
       statut: data.statut || "à_faire",
       priorite: data.priorite || "normale",
       technicienIds: JSON.stringify(data.technicienIds ?? []),
+      dateDebut: data.dateDebut,
       dateEcheance: data.dateEcheance,
       ordre: data.ordre ?? 0,
       createdAt: new Date().toISOString(),
@@ -1101,7 +1085,6 @@ export async function initializeTables() {
     await createClientsTable();
     await createCollectionsTable();
     await createSousCollectionsTable();
-    await createDevisTable();
     await createFacturesTable();
     await createLignesDocumentsTable();
     await createAdministrateursTable();
@@ -1119,7 +1102,6 @@ export {
     createSousCollectionsTable, 
     createArticlesTable, 
     createCollectionsTable, 
-    createDevisTable, 
     createFacturesTable, 
     createLignesDocumentsTable,
     createAdministrateursTable

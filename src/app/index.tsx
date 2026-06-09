@@ -5,6 +5,7 @@ import ProductPage from '../pages/produits';
 import ArticleDetail from '../pages/article_detail';
 import SetupPage from '../pages/setup';
 import LoginPage from '../pages/login';
+import CompanySetupPage from '../pages/company_setup';
 import ClientsPage from '../pages/clients';
 import ClientDetailPage from '../pages/client_detail';
 import ClientLayouts from '../layouts/client_layouts';
@@ -23,19 +24,34 @@ import ProjetDetailPage from '../pages/projet_detail';
 import SettingsPage from '../pages/settings';
 import { AuthProvider, useAuth } from '../auth/authProvider';
 import TitleBar from '../components/titlebar';
+import ImportExcelModal from '../components/import_excel_modal';
 import { AlertsProvider, useAlerts } from '../components/alerts';
 import { useDatabase } from '../databaseProvider';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { initGlobalScrollbars } from '../libs/scrollbars';
+import { setDevisCompanyInfo } from '../libs/devis_pdf';
+import { setFactureCompanyInfo } from '../libs/facture_pdf';
+import { SvgSpinners180RingWithBg } from '../libs/icons';
 
 const Router = () => {
     const { user, isSetupDone, isLoading } = useAuth();
+    const [companyCheck, setCompanyCheck] = useState<'pending' | 'needed' | 'done'>('pending');
+
+    useEffect(() => {
+        if (!user) {
+            setCompanyCheck('pending');
+            return;
+        }
+        window.companyApi.get()
+            .then((info) => setCompanyCheck(info.setupDone ? 'done' : 'needed'))
+            .catch(() => setCompanyCheck('done'));
+    }, [user]);
 
     if (isLoading || isSetupDone === null) {
         return (
             <div className="flex items-center justify-center h-dvh bg-gray-50">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <SvgSpinners180RingWithBg className="h-12 w-12 mx-auto mb-4 text-blue-600" />
                     <p className="text-gray-600">Chargement…</p>
                 </div>
             </div>
@@ -50,9 +66,22 @@ const Router = () => {
         return <LoginPage />;
     }
 
+    if (companyCheck === 'pending') {
+        return (
+            <div className="flex items-center justify-center h-dvh bg-gray-50">
+                <SvgSpinners180RingWithBg className="h-12 w-12 text-blue-600" />
+            </div>
+        );
+    }
+
+    if (companyCheck === 'needed') {
+        return <CompanySetupPage onDone={() => setCompanyCheck('done')} />;
+    }
+
     return (
         <>
             <InventoryWatcher />
+            <ImportExcelModal />
             <Routes>
                 <Route element={<Screen />}>
                     <Route path="/" element={<div className="p-6">Accueil</div>} />
@@ -120,6 +149,10 @@ export default function App() {
         const timer = window.setTimeout(() => {
             dispose = initGlobalScrollbars();
         }, 300);
+        window.companyApi?.get().then((info) => {
+            setDevisCompanyInfo(info);
+            setFactureCompanyInfo(info);
+        }).catch(() => { /* defaults kept */ });
         return () => {
             window.clearTimeout(timer);
             dispose?.();

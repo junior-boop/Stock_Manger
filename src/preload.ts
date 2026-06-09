@@ -106,6 +106,17 @@ const authApi = {
   me: () => ipcRenderer.invoke('auth:me'),
   hasPermission: (action: string) =>
     ipcRenderer.invoke('auth:hasPermission', action),
+  createUser: (data: {
+    nom: string;
+    prenom: string;
+    email: string;
+    telephone?: string;
+    role: 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur';
+    motDePasse: string;
+    statut?: 'actif' | 'inactif' | 'archivé';
+  }) => ipcRenderer.invoke('auth:createUser', data),
+  updateUserPassword: (id: string, motDePasse: string) =>
+    ipcRenderer.invoke('auth:updateUserPassword', id, motDePasse),
 };
 
 // ======================== TECHNICIENS ========================
@@ -168,6 +179,66 @@ const shellApi = {
 };
 contextBridge.exposeInMainWorld('pdf', pdfApi);
 contextBridge.exposeInMainWorld('shell', shellApi);
+
+// ======================== COMPANY INFO ========================
+type CustomField = {
+  id: string;
+  type: 'email' | 'tel' | 'url' | 'address' | 'text';
+  label: string;
+  value: string;
+};
+type CompanyInfo = {
+  nom: string;
+  adresse: string;
+  telephone: string;
+  email: string;
+  logoDataUrl: string;
+  notesDevis: string;
+  notesFacture: string;
+  conditionsPaiement: string;
+  setupDone: boolean;
+  customFields: CustomField[];
+  devisPrefix: string;
+  facturePrefix: string;
+  numeroFormat: string;
+  tvaDefault: number;
+  devise: string;
+};
+const companyApi = {
+  get: (): Promise<CompanyInfo> => ipcRenderer.invoke('company:get'),
+  set: (data: Partial<CompanyInfo>): Promise<CompanyInfo> => ipcRenderer.invoke('company:set', data),
+};
+contextBridge.exposeInMainWorld('companyApi', companyApi);
+
+// ======================== SYNC ========================
+type SyncConfig = {
+  serverUrl: string;
+  token: string;
+  clientId: string;
+  enabled: boolean;
+  syncInterval: number;
+  lastSyncAt: string | null;
+};
+const syncApi = {
+  getConfig: (): Promise<SyncConfig> => ipcRenderer.invoke('sync:getConfig'),
+  setConfig: (data: Partial<SyncConfig>): Promise<SyncConfig> => ipcRenderer.invoke('sync:setConfig', data),
+  login: (email: string, motDePasse: string): Promise<{ ok: boolean; user?: { id: string; email: string; nom: string; role: string }; error?: string }> =>
+    ipcRenderer.invoke('sync:login', email, motDePasse),
+  logout: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('sync:logout'),
+  testConnection: (): Promise<{ ok: boolean; data?: { ok: boolean; time: number }; error?: string }> =>
+    ipcRenderer.invoke('sync:testConnection'),
+  initServer: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
+    ipcRenderer.invoke('sync:initServer'),
+  markLastSync: (): Promise<SyncConfig> => ipcRenderer.invoke('sync:markLastSync'),
+};
+contextBridge.exposeInMainWorld('syncApi', syncApi);
+
+// ======================== EXPORT ========================
+const exportApi = {
+  articlesExcel: (): Promise<{ canceled: boolean; filePath?: string; count?: number }> =>
+    ipcRenderer.invoke('export:articlesExcel'),
+};
+contextBridge.exposeInMainWorld('exportApi', exportApi);
 
 // ======================== WINDOW CONTROLS ========================
 const windowApi = {

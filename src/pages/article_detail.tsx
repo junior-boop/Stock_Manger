@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import { useDatabase } from '../databaseProvider';
-import { FluentChevronLeft32Filled } from '../libs/icons';
+import { FluentChevronLeft32Filled, SvgSpinners180RingWithBg } from '../libs/icons';
 import { UniteArticle } from '../Databases/db.d';
 
 export default function ArticleDetail() {
@@ -351,7 +351,7 @@ export default function ArticleDetail() {
                         <div>
                             {loading ? (
                                 <div className="aspect-square bg-gray-100 rounded-2xl flex items-center justify-center">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                                    <SvgSpinners180RingWithBg className="h-12 w-12 text-blue-600" />
                                 </div>
                             ) : images.length > 0 || newImagePreviews.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-4">

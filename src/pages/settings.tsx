@@ -1,32 +1,322 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDatabase } from '../databaseProvider';
-import { Technicien } from '../Databases/db.d';
+import { Administrateur, RoleAdmin, Technicien } from '../Databases/db.d';
+import { useAuth } from '../auth/authProvider';
+import { useAlerts } from '../components/alerts';
+import { setDevisCompanyInfo } from '../libs/devis_pdf';
+import { setFactureCompanyInfo } from '../libs/facture_pdf';
 
-type Section = 'techniciens';
+type Section = 'entreprise' | 'numerotation' | 'sauvegarde' | 'permissions' | 'journal' | 'utilisateurs' | 'techniciens';
 
-const SECTIONS: { id: Section; label: string }[] = [
-    { id: 'techniciens', label: 'Techniciens' },
+const SECTIONS: { id: Section; label: string; description: string }[] = [
+    {
+        id: 'entreprise',
+        label: 'Entreprise',
+        description: "Nom, logo, coordonnées et notes par défaut affichées sur vos devis et factures, plus champs d'info personnalisés.",
+    },
+    {
+        id: 'numerotation',
+        label: 'Numérotation & documents',
+        description: "Préfixes et format des numéros de devis et factures, TVA par défaut et devise affichée sur les documents.",
+    },
+    {
+        id: 'utilisateurs',
+        label: 'Utilisateurs',
+        description: "Comptes administrateurs, rôles, mots de passe et activation des accès à l'application.",
+    },
+    {
+        id: 'techniciens',
+        label: 'Techniciens',
+        description: "Liste des techniciens de terrain : coordonnées, spécialités et statut pour les assigner aux projets.",
+    },
+    {
+        id: 'permissions',
+        label: 'Permissions',
+        description: "Matrice des droits par rôle : qui peut consulter, créer, modifier ou supprimer chaque type de donnée.",
+    },
+    {
+        id: 'sauvegarde',
+        label: 'Sauvegarde & synchronisation',
+        description: "État de la synchronisation cloud, export et import de la base locale, dernière sauvegarde réussie.",
+    },
+    {
+        id: 'journal',
+        label: "Journal d'activité",
+        description: "Historique des actions effectuées dans l'application : créations, modifications et suppressions.",
+    },
 ];
 
 export default function SettingsPage() {
-    const [section, setSection] = useState<Section>('techniciens');
+    const [section, setSection] = useState<Section>('entreprise');
 
     return (
         <div className="flex h-full w-full">
-            <aside className="w-52 h-full bg-white border-r border-slate-100 flex flex-col pt-6 px-3 gap-1 shrink-0">
+            <aside className="w-[350px] h-full bg-white border-r border-slate-100 flex flex-col pt-6 px-3 gap-1 shrink-0">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Paramètres</p>
-                {SECTIONS.map(s => (
-                    <button
-                        key={s.id}
-                        onClick={() => setSection(s.id)}
-                        className={`text-left px-3 py-2 rounded-lg text-sm transition-colors ${section === s.id ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50 text-gray-600'}`}
-                    >
-                        {s.label}
-                    </button>
-                ))}
+                {SECTIONS.map(s => {
+                    const active = section === s.id;
+                    return (
+                        <button
+                            key={s.id}
+                            onClick={() => setSection(s.id)}
+                            className={`text-left px-3 py-2.5 rounded-lg transition-colors flex flex-col gap-1 ${active ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                        >
+                            <span className={`text-sm ${active ? 'font-semibold text-slate-900' : 'font-medium text-gray-700'}`}>{s.label}</span>
+                            <span className={`text-[11px] leading-snug ${active ? 'text-slate-600' : 'text-gray-500'}`}>{s.description}</span>
+                        </button>
+                    );
+                })}
             </aside>
-            <div className="flex-1 h-full overflow-y-auto">
+            <div key={section} className="flex-1 h-full overflow-y-auto">
+                {section === 'entreprise' && <EntrepriseSection />}
+                {section === 'numerotation' && <NumerotationSection />}
+                {section === 'utilisateurs' && <UtilisateursSection />}
                 {section === 'techniciens' && <TechniciensSection />}
+                {section === 'permissions' && <PermissionsSection />}
+                {section === 'sauvegarde' && <SauvegardeSection />}
+                {section === 'journal' && <JournalSection />}
+            </div>
+        </div>
+    );
+}
+
+const ROLES: { value: RoleAdmin; label: string }[] = [
+    { value: 'super_admin', label: 'Super admin' },
+    { value: 'admin', label: 'Admin' },
+    { value: 'gestionnaire', label: 'Gestionnaire' },
+    { value: 'vendeur', label: 'Vendeur' },
+];
+
+type UserFormState = {
+    nom: string;
+    prenom: string;
+    email: string;
+    telephone: string;
+    role: RoleAdmin;
+    motDePasse: string;
+    statut: 'actif' | 'inactif' | 'archivé';
+};
+
+const EMPTY_USER_FORM: UserFormState = {
+    nom: '',
+    prenom: '',
+    email: '',
+    telephone: '',
+    role: 'vendeur',
+    motDePasse: '',
+    statut: 'actif',
+};
+
+function UtilisateursSection() {
+    const { administrateurs, refreshAdministrateurs } = useDatabase();
+    const { user: currentUser } = useAuth();
+    const [editId, setEditId] = useState<string | null>(null);
+    const [showAdd, setShowAdd] = useState(false);
+    const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
+    const [saving, setSaving] = useState(false);
+    const [errors, setErrors] = useState<Partial<Record<keyof UserFormState, string>>>({});
+    const [serverError, setServerError] = useState<string | null>(null);
+
+    const validate = () => {
+        const e: Partial<Record<keyof UserFormState, string>> = {};
+        if (!form.nom.trim()) e.nom = 'Requis';
+        if (!form.prenom.trim()) e.prenom = 'Requis';
+        if (!form.email.trim()) e.email = 'Requis';
+        if (!editId && form.motDePasse.length < 6) e.motDePasse = 'Min. 6 caractères';
+        if (editId && form.motDePasse && form.motDePasse.length < 6) e.motDePasse = 'Min. 6 caractères';
+        setErrors(e);
+        return Object.keys(e).length === 0;
+    };
+
+    const openAdd = () => {
+        setForm(EMPTY_USER_FORM);
+        setErrors({});
+        setServerError(null);
+        setEditId(null);
+        setShowAdd(true);
+    };
+
+    const openEdit = (a: Administrateur) => {
+        setForm({
+            nom: a.nom,
+            prenom: a.prenom,
+            email: a.email,
+            telephone: a.telephone ?? '',
+            role: a.role,
+            motDePasse: '',
+            statut: a.statut,
+        });
+        setErrors({});
+        setServerError(null);
+        setEditId(a.id);
+        setShowAdd(true);
+    };
+
+    const handleSave = async () => {
+        if (!validate()) return;
+        setSaving(true);
+        setServerError(null);
+        try {
+            if (editId) {
+                await window.db.administrateurs.update(editId, {
+                    nom: form.nom.trim(),
+                    prenom: form.prenom.trim(),
+                    email: form.email.trim(),
+                    telephone: form.telephone.trim() || undefined,
+                    role: form.role,
+                    statut: form.statut,
+                });
+                if (form.motDePasse) {
+                    const res = await window.auth.updateUserPassword(editId, form.motDePasse);
+                    if (!res.ok) {
+                        setServerError(res.error ?? 'Erreur mot de passe');
+                        return;
+                    }
+                }
+            } else {
+                const res = await window.auth.createUser({
+                    nom: form.nom.trim(),
+                    prenom: form.prenom.trim(),
+                    email: form.email.trim(),
+                    telephone: form.telephone.trim() || undefined,
+                    role: form.role,
+                    motDePasse: form.motDePasse,
+                    statut: form.statut,
+                });
+                if (!res.ok) {
+                    setServerError(res.error ?? 'Erreur lors de la création');
+                    return;
+                }
+            }
+            await refreshAdministrateurs();
+            setShowAdd(false);
+            setEditId(null);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        await window.db.administrateurs.delete(id);
+        await refreshAdministrateurs();
+    };
+
+    const me = currentUser ? administrateurs.find(a => a.id === currentUser.id) : null;
+    const others = administrateurs.filter(a => a.id !== currentUser?.id);
+    const actifs = others.filter(a => a.statut === 'actif');
+    const inactifs = others.filter(a => a.statut !== 'actif');
+
+    return (
+        <div className="px-8 py-6 max-w-3xl flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-xl font-semibold">Utilisateurs</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Gérez les comptes et leurs rôles.</p>
+                </div>
+                <button
+                    onClick={openAdd}
+                    className="px-4 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900"
+                >
+                    + Ajouter
+                </button>
+            </div>
+
+            {showAdd && (
+                <div className="border border-slate-200 rounded-2xl bg-slate-50 p-5 flex flex-col gap-4">
+                    <h3 className="text-sm font-semibold">{editId ? "Modifier l'utilisateur" : 'Nouvel utilisateur'}</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Field label="Prénom *" error={errors.prenom}>
+                            <input autoFocus value={form.prenom} onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))} className={inputCls(!!errors.prenom)} />
+                        </Field>
+                        <Field label="Nom *" error={errors.nom}>
+                            <input value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} className={inputCls(!!errors.nom)} />
+                        </Field>
+                        <Field label="Email *" error={errors.email}>
+                            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inputCls(!!errors.email)} />
+                        </Field>
+                        <Field label="Téléphone">
+                            <input value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} className={inputCls(false)} />
+                        </Field>
+                        <Field label="Rôle *">
+                            <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as RoleAdmin }))} className={inputCls(false)}>
+                                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                            </select>
+                        </Field>
+                        <Field label="Statut">
+                            <select value={form.statut} onChange={e => setForm(f => ({ ...f, statut: e.target.value as UserFormState['statut'] }))} className={inputCls(false)}>
+                                <option value="actif">Actif</option>
+                                <option value="inactif">Inactif</option>
+                                <option value="archivé">Archivé</option>
+                            </select>
+                        </Field>
+                        <Field label={editId ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe *'} error={errors.motDePasse}>
+                            <input type="password" value={form.motDePasse} onChange={e => setForm(f => ({ ...f, motDePasse: e.target.value }))} className={inputCls(!!errors.motDePasse)} placeholder="Min. 6 caractères" />
+                        </Field>
+                    </div>
+                    {serverError && <p className="text-red-500 text-xs">{serverError}</p>}
+                    <div className="flex gap-2">
+                        <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900 disabled:opacity-50">
+                            {saving ? 'Enregistrement…' : editId ? 'Modifier' : 'Ajouter'}
+                        </button>
+                        <button onClick={() => { setShowAdd(false); setEditId(null); }} className="px-5 py-2 bg-white border border-slate-200 text-sm rounded-full hover:bg-slate-50">
+                            Annuler
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {administrateurs.length === 0 ? (
+                <div className="text-sm text-gray-400 text-center py-12">Aucun utilisateur.</div>
+            ) : (
+                <div className="flex flex-col gap-2">
+                    {me && (
+                        <div className="contents">
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Session active</p>
+                            <UserRow key={me.id} admin={me} onEdit={openEdit} onDelete={handleDelete} isCurrent />
+                        </div>
+                    )}
+                    {actifs.length > 0 && (
+                        <div className="contents">
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mt-4">Autres utilisateurs actifs</p>
+                            {actifs.map(a => <UserRow key={a.id} admin={a} onEdit={openEdit} onDelete={handleDelete} />)}
+                        </div>
+                    )}
+                    {inactifs.length > 0 && (
+                        <div className="contents">
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mt-4">Inactifs / Archivés</p>
+                            {inactifs.map(a => <UserRow key={a.id} admin={a} onEdit={openEdit} onDelete={handleDelete} />)}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function UserRow({ admin, onEdit, onDelete, isCurrent }: { admin: Administrateur; onEdit: (a: Administrateur) => void; onDelete: (id: string) => void; isCurrent?: boolean }) {
+    const roleLabel = ROLES.find(r => r.value === admin.role)?.label ?? admin.role;
+    return (
+        <div className={`flex items-center gap-4 px-4 py-3 bg-white border rounded-xl group ${isCurrent ? 'border-blue-300 ring-1 ring-blue-200' : 'border-slate-200'}`}>
+            <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 text-sm font-semibold flex items-center justify-center shrink-0">
+                {(admin.prenom[0] ?? '').toUpperCase()}{(admin.nom[0] ?? '').toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium flex items-center gap-2">
+                    {admin.prenom} {admin.nom}
+                    {isCurrent && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">vous</span>}
+                </div>
+                <div className="text-xs text-gray-500 flex gap-3 mt-0.5">
+                    <span>{admin.email}</span>
+                    {admin.telephone && <span>{admin.telephone}</span>}
+                </div>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full shrink-0 bg-blue-50 text-blue-700">{roleLabel}</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${admin.statut === 'actif' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                {admin.statut}
+            </span>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <button onClick={() => onEdit(admin)} className="text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full">Modifier</button>
+                <button onClick={() => onDelete(admin.id)} className="text-xs px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full">Supprimer</button>
             </div>
         </div>
     );
@@ -219,16 +509,16 @@ function TechniciensSection() {
             ) : (
                 <div className="flex flex-col gap-2">
                     {actifs.length > 0 && (
-                        <>
+                        <div className="contents">
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Actifs</p>
                             {actifs.map(t => <TechnicienRow key={t.id} tech={t} onEdit={openEdit} onDelete={handleDelete} />)}
-                        </>
+                        </div>
                     )}
                     {inactifs.length > 0 && (
-                        <>
+                        <div className="contents">
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mt-4">Inactifs / Archivés</p>
                             {inactifs.map(t => <TechnicienRow key={t.id} tech={t} onEdit={openEdit} onDelete={handleDelete} />)}
-                        </>
+                        </div>
                     )}
                 </div>
             )}
@@ -291,4 +581,753 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 
 function inputCls(hasError: boolean) {
     return `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white ${hasError ? 'border-red-400' : 'border-slate-200'}`;
+}
+
+type CustomField = {
+    id: string;
+    type: 'email' | 'tel' | 'url' | 'address' | 'text';
+    label: string;
+    value: string;
+};
+
+type EntrepriseForm = {
+    nom: string;
+    adresse: string;
+    telephone: string;
+    email: string;
+    logoDataUrl: string;
+    notesDevis: string;
+    notesFacture: string;
+    conditionsPaiement: string;
+    customFields: CustomField[];
+};
+
+const EMPTY_ENTREPRISE: EntrepriseForm = {
+    nom: '', adresse: '', telephone: '', email: '',
+    logoDataUrl: '', notesDevis: '', notesFacture: '', conditionsPaiement: '',
+    customFields: [],
+};
+
+const FIELD_TYPES: { value: CustomField['type']; label: string; placeholder: string }[] = [
+    { value: 'email', label: 'Email', placeholder: 'contact@exemple.com' },
+    { value: 'tel', label: 'Téléphone', placeholder: '+237 6XX XX XX XX' },
+    { value: 'url', label: 'Site web', placeholder: 'https://exemple.com' },
+    { value: 'address', label: 'Adresse', placeholder: 'Rue, ville, pays' },
+    { value: 'text', label: 'Texte / Description', placeholder: 'Texte libre' },
+];
+
+function genId() { return Math.random().toString(36).slice(2, 10); }
+
+function EntrepriseSection() {
+    const { success, error: notifyError } = useAlerts();
+    const [form, setForm] = useState<EntrepriseForm>(EMPTY_ENTREPRISE);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const fileRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        window.companyApi.get().then((info) => {
+            setForm({ ...EMPTY_ENTREPRISE, ...info });
+        }).catch(() => undefined).finally(() => setLoading(false));
+    }, []);
+
+    const handleLogoPick = () => fileRef.current?.click();
+
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+            notifyError('Logo trop volumineux', 'La taille du logo doit être inférieure à 2 Mo.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setForm((f) => ({ ...f, logoDataUrl: String(reader.result ?? '') }));
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const next = await window.companyApi.set(form);
+            setDevisCompanyInfo(next);
+            setFactureCompanyInfo(next);
+            window.dispatchEvent(new Event('company:changed'));
+            success('Informations enregistrées', 'Les informations de l\'entreprise ont été mises à jour.');
+        } catch (e) {
+            notifyError('Erreur', 'Impossible d\'enregistrer les informations.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+        return <div className="px-8 py-6 text-sm text-gray-500">Chargement…</div>;
+    }
+
+    return (
+        <div className="px-8 py-6 max-w-3xl flex flex-col gap-6">
+            <div>
+                <h2 className="text-xl font-semibold">Entreprise</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Informations affichées sur les devis et factures.</p>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-5">
+                <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-2">Logo</label>
+                    <div className="flex items-center gap-4">
+                        <div className="w-24 h-24 rounded-xl bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
+                            {form.logoDataUrl
+                                ? <img src={form.logoDataUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                : <span className="text-[10px] text-gray-400">Aucun logo</span>}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <input ref={fileRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+                            <button onClick={handleLogoPick} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900">
+                                {form.logoDataUrl ? 'Changer le logo' : 'Ajouter un logo'}
+                            </button>
+                            {form.logoDataUrl && (
+                                <button onClick={() => setForm((f) => ({ ...f, logoDataUrl: '' }))} className="px-4 py-2 bg-white border border-slate-200 text-sm rounded-full hover:bg-slate-50">
+                                    Retirer
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">Nom de l'entreprise</label>
+                        <input value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} className={inputCls(false)} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">Email</label>
+                        <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls(false)} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">Téléphone</label>
+                        <input value={form.telephone} onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))} className={inputCls(false)} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">Adresse</label>
+                        <input value={form.adresse} onChange={(e) => setForm((f) => ({ ...f, adresse: e.target.value }))} className={inputCls(false)} />
+                    </div>
+                </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-5">
+                <h3 className="text-sm font-semibold">Notes par défaut</h3>
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Notes des devis</label>
+                    <textarea
+                        value={form.notesDevis}
+                        onChange={(e) => setForm((f) => ({ ...f, notesDevis: e.target.value }))}
+                        rows={3}
+                        className={inputCls(false) + ' resize-none'}
+                        placeholder="Texte affiché par défaut en bas des devis (si le devis n'a pas de note spécifique)"
+                    />
+                </div>
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Notes des factures</label>
+                    <textarea
+                        value={form.notesFacture}
+                        onChange={(e) => setForm((f) => ({ ...f, notesFacture: e.target.value }))}
+                        rows={3}
+                        className={inputCls(false) + ' resize-none'}
+                        placeholder="Texte affiché par défaut en bas des factures"
+                    />
+                </div>
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Conditions de paiement</label>
+                    <textarea
+                        value={form.conditionsPaiement}
+                        onChange={(e) => setForm((f) => ({ ...f, conditionsPaiement: e.target.value }))}
+                        rows={3}
+                        className={inputCls(false) + ' resize-none'}
+                        placeholder="Ex : Paiement à 30 jours, par virement bancaire sur le compte XXXX…"
+                    />
+                </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-semibold">Informations supplémentaires</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Ajoutez d'autres emails, téléphones, sites web, adresses ou descriptions.</p>
+                    </div>
+                    <button
+                        onClick={() => setForm((f) => ({
+                            ...f,
+                            customFields: [...f.customFields, { id: genId(), type: 'email', label: '', value: '' }],
+                        }))}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-sm rounded-full"
+                    >
+                        + Ajouter un champ
+                    </button>
+                </div>
+
+                {form.customFields.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">Aucun champ supplémentaire.</p>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {form.customFields.map((field) => {
+                            const fieldType = FIELD_TYPES.find((t) => t.value === field.type);
+                            const updateField = (patch: Partial<CustomField>) => {
+                                setForm((f) => ({
+                                    ...f,
+                                    customFields: f.customFields.map((c) => c.id === field.id ? { ...c, ...patch } : c),
+                                }));
+                            };
+                            const removeField = () => {
+                                setForm((f) => ({
+                                    ...f,
+                                    customFields: f.customFields.filter((c) => c.id !== field.id),
+                                }));
+                            };
+                            return (
+                                <div key={field.id} className="grid grid-cols-[140px_180px_1fr_auto] gap-2 items-start">
+                                    <select
+                                        value={field.type}
+                                        onChange={(e) => updateField({ type: e.target.value as CustomField['type'] })}
+                                        className={inputCls(false)}
+                                    >
+                                        {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                    </select>
+                                    <input
+                                        value={field.label}
+                                        onChange={(e) => updateField({ label: e.target.value })}
+                                        className={inputCls(false)}
+                                        placeholder="Libellé (ex : Atelier)"
+                                    />
+                                    {field.type === 'address' || field.type === 'text' ? (
+                                        <textarea
+                                            value={field.value}
+                                            onChange={(e) => updateField({ value: e.target.value })}
+                                            className={inputCls(false) + ' resize-none'}
+                                            rows={2}
+                                            placeholder={fieldType?.placeholder}
+                                        />
+                                    ) : (
+                                        <input
+                                            type={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : field.type === 'url' ? 'url' : 'text'}
+                                            value={field.value}
+                                            onChange={(e) => updateField({ value: e.target.value })}
+                                            className={inputCls(false)}
+                                            placeholder={fieldType?.placeholder}
+                                        />
+                                    )}
+                                    <button
+                                        onClick={removeField}
+                                        className="h-9 px-3 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-full"
+                                    >
+                                        Supprimer
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            <div className="flex gap-2">
+                <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900 disabled:opacity-50">
+                    {saving ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ======================== NUMEROTATION & DOCUMENTS ========================
+
+type NumerotationForm = {
+    devisPrefix: string;
+    facturePrefix: string;
+    numeroFormat: string;
+    tvaDefault: number;
+    devise: string;
+};
+
+const EMPTY_NUMEROTATION: NumerotationForm = {
+    devisPrefix: 'DEV',
+    facturePrefix: 'FAC',
+    numeroFormat: 'PREFIX-YYYY-NNNN',
+    tvaDefault: 19.25,
+    devise: 'FCFA',
+};
+
+const FORMAT_OPTIONS = [
+    { value: 'PREFIX-YYYY-NNNN', label: 'PREFIX-YYYY-NNNN (ex : DEV-2026-0001)' },
+    { value: 'PREFIX-YY-NNNN', label: 'PREFIX-YY-NNNN (ex : DEV-26-0001)' },
+    { value: 'PREFIX-YYYYMM-NNNN', label: 'PREFIX-YYYYMM-NNNN (ex : DEV-202606-0001)' },
+    { value: 'PREFIX-NNNN', label: 'PREFIX-NNNN (ex : DEV-0001)' },
+];
+
+function previewNumero(format: string, prefix: string): string {
+    const now = new Date();
+    const yyyy = String(now.getFullYear());
+    const yy = yyyy.slice(2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    return format
+        .replace('PREFIX', prefix || 'PREFIX')
+        .replace('YYYYMM', yyyy + mm)
+        .replace('YYYY', yyyy)
+        .replace('YY', yy)
+        .replace('NNNN', '0001');
+}
+
+function NumerotationSection() {
+    const { success, error: notifyError } = useAlerts();
+    const [form, setForm] = useState<NumerotationForm>(EMPTY_NUMEROTATION);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        window.companyApi.get().then((info) => {
+            setForm({
+                devisPrefix: info.devisPrefix || EMPTY_NUMEROTATION.devisPrefix,
+                facturePrefix: info.facturePrefix || EMPTY_NUMEROTATION.facturePrefix,
+                numeroFormat: info.numeroFormat || EMPTY_NUMEROTATION.numeroFormat,
+                tvaDefault: typeof info.tvaDefault === 'number' ? info.tvaDefault : EMPTY_NUMEROTATION.tvaDefault,
+                devise: info.devise || EMPTY_NUMEROTATION.devise,
+            });
+        }).catch(() => undefined).finally(() => setLoading(false));
+    }, []);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const next = await window.companyApi.set(form);
+            setDevisCompanyInfo(next);
+            setFactureCompanyInfo(next);
+            window.dispatchEvent(new Event('company:changed'));
+            success('Numérotation enregistrée', 'Les paramètres de numérotation ont été mis à jour.');
+        } catch {
+            notifyError('Erreur', "Impossible d'enregistrer les paramètres.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) return <div className="px-8 py-6 text-sm text-gray-500">Chargement…</div>;
+
+    return (
+        <div className="px-8 py-6 max-w-3xl flex flex-col gap-6">
+            <div>
+                <h2 className="text-xl font-semibold">Numérotation & documents</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Format des numéros, TVA par défaut et devise des documents.</p>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-5">
+                <h3 className="text-sm font-semibold">Préfixes</h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">Préfixe devis</label>
+                        <input value={form.devisPrefix} onChange={(e) => setForm((f) => ({ ...f, devisPrefix: e.target.value.toUpperCase() }))} className={inputCls(false)} placeholder="DEV" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">Préfixe facture</label>
+                        <input value={form.facturePrefix} onChange={(e) => setForm((f) => ({ ...f, facturePrefix: e.target.value.toUpperCase() }))} className={inputCls(false)} placeholder="FAC" />
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-600">Format du numéro</label>
+                    <select value={form.numeroFormat} onChange={(e) => setForm((f) => ({ ...f, numeroFormat: e.target.value }))} className={inputCls(false)}>
+                        {FORMAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex flex-col gap-1">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Aperçu</p>
+                    <div className="flex gap-6 text-sm">
+                        <div><span className="text-gray-500">Devis : </span><span className="font-mono font-medium">{previewNumero(form.numeroFormat, form.devisPrefix)}</span></div>
+                        <div><span className="text-gray-500">Facture : </span><span className="font-mono font-medium">{previewNumero(form.numeroFormat, form.facturePrefix)}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-5">
+                <h3 className="text-sm font-semibold">Valeurs par défaut</h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">TVA par défaut (%)</label>
+                        <input type="number" step="0.01" min="0" value={form.tvaDefault} onChange={(e) => setForm((f) => ({ ...f, tvaDefault: parseFloat(e.target.value) || 0 }))} className={inputCls(false)} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-600">Devise</label>
+                        <input value={form.devise} onChange={(e) => setForm((f) => ({ ...f, devise: e.target.value }))} className={inputCls(false)} placeholder="FCFA" />
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex gap-2">
+                <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900 disabled:opacity-50">
+                    {saving ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ======================== PERMISSIONS ========================
+
+const PERMISSION_GROUPS: { group: string; actions: { key: string; label: string; roles: Record<RoleAdmin, boolean> }[] }[] = [
+    {
+        group: 'Articles & catalogue',
+        actions: [
+            { key: 'articles.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
+            { key: 'articles.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false } },
+            { key: 'articles.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false } },
+            { key: 'articles.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+        ],
+    },
+    {
+        group: 'Clients',
+        actions: [
+            { key: 'clients.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
+            { key: 'clients.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
+            { key: 'clients.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
+            { key: 'clients.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+        ],
+    },
+    {
+        group: 'Devis & factures',
+        actions: [
+            { key: 'documents.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
+            { key: 'documents.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
+            { key: 'documents.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false } },
+            { key: 'documents.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+        ],
+    },
+    {
+        group: 'Utilisateurs & paramètres',
+        actions: [
+            { key: 'users.manage', label: 'Gérer les comptes', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+            { key: 'settings.write', label: 'Modifier les paramètres', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+            { key: 'audit.read', label: "Consulter le journal d'activité", roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+        ],
+    },
+];
+
+function PermissionsSection() {
+    const { administrateurs, refreshAdministrateurs } = useDatabase();
+    const { user: currentUser } = useAuth();
+    const { success, error: notifyError } = useAlerts();
+    const [savingId, setSavingId] = useState<string | null>(null);
+
+    const handleRoleChange = async (admin: Administrateur, newRole: RoleAdmin) => {
+        if (admin.role === newRole) return;
+        setSavingId(admin.id);
+        try {
+            await window.db.administrateurs.update(admin.id, { role: newRole });
+            await refreshAdministrateurs();
+            success('Rôle mis à jour', `${admin.prenom} ${admin.nom} est maintenant ${ROLES.find(r => r.value === newRole)?.label ?? newRole}.`);
+        } catch {
+            notifyError('Erreur', 'Impossible de changer le rôle.');
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    const me = currentUser ? administrateurs.find(a => a.id === currentUser.id) : null;
+    const others = administrateurs.filter(a => a.id !== currentUser?.id);
+
+    return (
+        <div className="px-8 py-6 max-w-4xl flex flex-col gap-6">
+            <div>
+                <h2 className="text-xl font-semibold">Permissions</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Matrice des droits par rôle et attribution des rôles aux utilisateurs.</p>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-4">
+                <div>
+                    <h3 className="text-sm font-semibold">Utilisateurs & rôles</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Modifiez le rôle d'un utilisateur pour ajuster ses permissions.</p>
+                </div>
+
+                {administrateurs.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">Aucun utilisateur.</p>
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        {me && (
+                            <>
+                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Session active</p>
+                                <PermissionUserRow admin={me} isCurrent savingId={savingId} onRoleChange={handleRoleChange} />
+                            </>
+                        )}
+                        {others.length > 0 && (
+                            <>
+                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mt-3">Autres utilisateurs</p>
+                                {others.map(a => (
+                                    <PermissionUserRow key={a.id} admin={a} savingId={savingId} onRoleChange={handleRoleChange} />
+                                ))}
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <div>
+                <h3 className="text-sm font-semibold mb-2">Matrice des droits par rôle</h3>
+                <p className="text-xs text-gray-500 mb-3">Lecture seule. Chaque rôle ouvre les actions cochées ci-dessous.</p>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden">
+                <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Action</th>
+                            {ROLES.map((r) => (
+                                <th key={r.value} className="px-3 py-3 font-medium text-gray-600 text-center w-28">{r.label}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {PERMISSION_GROUPS.flatMap((group) => [
+                            <tr key={`group-${group.group}`} className="bg-slate-50/50">
+                                <td colSpan={ROLES.length + 1} className="px-4 py-2 text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{group.group}</td>
+                            </tr>,
+                            ...group.actions.map((action) => (
+                                <tr key={action.key} className="border-t border-slate-100">
+                                    <td className="px-4 py-2.5 text-gray-700">{action.label}</td>
+                                    {ROLES.map((r) => (
+                                        <td key={r.value} className="px-3 py-2.5 text-center">
+                                            {action.roles[r.value] ? (
+                                                <span className="inline-block w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs leading-5">✓</span>
+                                            ) : (
+                                                <span className="inline-block w-5 h-5 rounded-full bg-slate-100 text-slate-400 text-xs leading-5">—</span>
+                                            )}
+                                        </td>
+                                    ))}
+                                </tr>
+                            )),
+                        ])}
+                    </tbody>
+                </table>
+            </div>
+
+            <p className="text-xs text-gray-400">L'édition de la matrice sera disponible dans une prochaine version.</p>
+        </div>
+    );
+}
+
+function PermissionUserRow({
+    admin,
+    isCurrent,
+    savingId,
+    onRoleChange,
+}: {
+    admin: Administrateur;
+    isCurrent?: boolean;
+    savingId: string | null;
+    onRoleChange: (admin: Administrateur, role: RoleAdmin) => void;
+}) {
+    const saving = savingId === admin.id;
+    return (
+        <div className={`flex items-center gap-4 px-4 py-3 bg-white border rounded-xl ${isCurrent ? 'border-blue-300 ring-1 ring-blue-200' : 'border-slate-200'}`}>
+            <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 text-sm font-semibold flex items-center justify-center shrink-0">
+                {(admin.prenom[0] ?? '').toUpperCase()}{(admin.nom[0] ?? '').toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium flex items-center gap-2">
+                    {admin.prenom} {admin.nom}
+                    {isCurrent && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">vous</span>}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">{admin.email}</div>
+            </div>
+            <select
+                value={admin.role}
+                onChange={(e) => onRoleChange(admin, e.target.value as RoleAdmin)}
+                disabled={saving || isCurrent}
+                title={isCurrent ? 'Vous ne pouvez pas modifier votre propre rôle' : ''}
+                className="px-3 py-1.5 text-xs border border-slate-200 rounded-full bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            {saving && <span className="text-[10px] text-gray-400">…</span>}
+        </div>
+    );
+}
+
+// ======================== SAUVEGARDE & SYNCHRONISATION ========================
+
+function SauvegardeSection() {
+    const { success: notifySuccess, error: notifyError } = useAlerts();
+    const [cfg, setCfg] = useState<{ serverUrl: string; token: string; clientId: string; enabled: boolean; syncInterval: number; lastSyncAt: string | null } | null>(null);
+    const [serverUrl, setServerUrl] = useState('');
+    const [email, setEmail] = useState('');
+    const [motDePasse, setMotDePasse] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+        window.syncApi.getConfig().then((c) => {
+            setCfg(c);
+            setServerUrl(c.serverUrl);
+        });
+    }, []);
+
+    const saveUrl = async () => {
+        setBusy(true);
+        const next = await window.syncApi.setConfig({ serverUrl: serverUrl.trim() });
+        setCfg(next);
+        setBusy(false);
+        notifySuccess('Sync', 'URL serveur enregistrée.');
+    };
+
+    const testConn = async () => {
+        setBusy(true);
+        const res = await window.syncApi.testConnection();
+        setBusy(false);
+        if (res.ok) notifySuccess('Sync', 'Connexion serveur OK.');
+        else notifyError('Sync', res.error || 'Échec connexion');
+    };
+
+    const doLogin = async () => {
+        setBusy(true);
+        const res = await window.syncApi.login(email, motDePasse);
+        setBusy(false);
+        if (res.ok) {
+            const next = await window.syncApi.getConfig();
+            setCfg(next);
+            setEmail(''); setMotDePasse('');
+            notifySuccess('Sync', `Connecté en tant que ${res.user?.email}`);
+        } else {
+            notifyError('Sync', res.error || 'Identifiants invalides');
+        }
+    };
+
+    const doLogout = async () => {
+        await window.syncApi.logout();
+        const next = await window.syncApi.getConfig();
+        setCfg(next);
+        notifySuccess('Sync', 'Déconnecté du serveur.');
+    };
+
+    const doInit = async () => {
+        setBusy(true);
+        const res = await window.syncApi.initServer();
+        setBusy(false);
+        if (res.ok) notifySuccess('Sync', 'Tables serveur initialisées.');
+        else notifyError('Sync', res.error || 'Échec init');
+    };
+
+    const connected = !!cfg?.token;
+
+    return (
+        <div className="px-8 py-6 max-w-3xl flex flex-col gap-6">
+            <div>
+                <h2 className="text-xl font-semibold">Sauvegarde & synchronisation</h2>
+                <p className="text-sm text-gray-500 mt-0.5">État de la sync cloud et gestion locale de la base de données.</p>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-semibold">Synchronisation cloud</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Base répliquée vers Cloudflare D1 via Workers.</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${connected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {connected ? 'Connecté' : 'Non connecté'}
+                    </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="bg-slate-50 rounded-xl px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Client ID</p>
+                        <p className="mt-1 font-mono text-[11px] text-gray-700 truncate">{cfg?.clientId || '—'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Dernière sync</p>
+                        <p className="mt-1 font-medium text-gray-700">{cfg?.lastSyncAt ? new Date(cfg.lastSyncAt).toLocaleString('fr-FR') : 'Jamais'}</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold text-gray-600">URL du serveur</label>
+                    <div className="flex gap-2">
+                        <input
+                            value={serverUrl}
+                            onChange={(e) => setServerUrl(e.target.value)}
+                            placeholder="https://kataleya-server.workers.dev"
+                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                        />
+                        <button onClick={saveUrl} disabled={busy} className="px-3 py-2 bg-slate-800 text-white text-sm rounded-lg disabled:opacity-50">Enregistrer</button>
+                        <button onClick={testConn} disabled={busy || !cfg?.serverUrl} className="px-3 py-2 bg-white border border-slate-200 text-sm rounded-lg disabled:opacity-50">Tester</button>
+                    </div>
+                </div>
+
+                {!connected ? (
+                    <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+                        <label className="text-xs font-semibold text-gray-600">Connexion au serveur</label>
+                        <input
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="email@kataleya.com"
+                            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                        />
+                        <input
+                            type="password"
+                            value={motDePasse}
+                            onChange={(e) => setMotDePasse(e.target.value)}
+                            placeholder="Mot de passe"
+                            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                        />
+                        <button onClick={doLogin} disabled={busy || !cfg?.serverUrl} className="self-start px-4 py-2 bg-emerald-600 text-white text-sm rounded-full disabled:opacity-50">
+                            Se connecter
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex gap-2 border-t border-slate-100 pt-4">
+                        <button onClick={doInit} disabled={busy} className="px-4 py-2 bg-slate-800 text-white text-sm rounded-full disabled:opacity-50">Initialiser les tables D1</button>
+                        <button onClick={doLogout} className="px-4 py-2 bg-white border border-slate-200 text-sm rounded-full">Se déconnecter</button>
+                    </div>
+                )}
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-4">
+                <div>
+                    <h3 className="text-sm font-semibold">Sauvegarde locale</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Exporter ou restaurer la base SQLite locale.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={() => notifySuccess('Export', 'Fonctionnalité bientôt disponible.')}
+                        className="px-4 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900"
+                    >
+                        Exporter la base
+                    </button>
+                    <button
+                        onClick={() => notifySuccess('Import', 'Fonctionnalité bientôt disponible.')}
+                        className="px-4 py-2 bg-white border border-slate-200 text-sm rounded-full hover:bg-slate-50"
+                    >
+                        Importer une sauvegarde
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ======================== JOURNAL D'ACTIVITE ========================
+
+function JournalSection() {
+    return (
+        <div className="px-8 py-6 max-w-4xl flex flex-col gap-6">
+            <div>
+                <h2 className="text-xl font-semibold">Journal d'activité</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Historique des actions des utilisateurs sur les données.</p>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-12 flex flex-col items-center gap-3 text-center">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+                </div>
+                <h3 className="text-sm font-semibold">Aucune activité enregistrée</h3>
+                <p className="text-xs text-gray-500 max-w-md">Le journal d'audit sera alimenté automatiquement à mesure que les utilisateurs créent, modifient ou suppriment des données.</p>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 mt-2">Bientôt disponible</span>
+            </div>
+        </div>
+    );
 }

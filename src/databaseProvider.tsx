@@ -20,6 +20,7 @@ import {
     Projet,
     TacheProjet,
 } from './Databases/db.d';
+import { db } from './context/db_sync';
 
 type DatabaseError = {
     message: string;
@@ -126,7 +127,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshArticles = useCallback(async () => {
         try {
-            const result = await window.db.articles.getAll();
+            const result = await db.articles.getAll();
             setArticles(result || []);
         } catch (error) {
             handleError(error, 'refreshing articles');
@@ -135,7 +136,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshClients = useCallback(async () => {
         try {
-            const result = await window.db.clients.getAll();
+            const result = await db.clients.getAll();
             setClients(result || []);
         } catch (error) {
             handleError(error, 'refreshing clients');
@@ -144,7 +145,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshCollections = useCallback(async () => {
         try {
-            const result = await window.db.collections.getAll();
+            const result = await db.collections.getAll();
             setCollections(result || []);
         } catch (error) {
             handleError(error, 'refreshing collections');
@@ -153,7 +154,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshSousCollections = useCallback(async () => {
         try {
-            const result = await window.db.sousCollections.getAll();
+            const result = await db.sousCollections.getAll();
             setSousCollections(result || []);
         } catch (error) {
             handleError(error, 'refreshing sous-collections');
@@ -162,7 +163,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshSousCollectionsByCollection = useCallback(async (collectionId: string) => {
         try {
-            const result = await window.db.sousCollections.getByCollectionId(collectionId);
+            const result = await db.sousCollections.getByCollectionId(collectionId);
             setSousCollections(prev => {
                 const filtered = prev.filter(s => s.collectionId !== collectionId);
                 return [...filtered, ...(result || [])];
@@ -174,7 +175,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshAdministrateurs = useCallback(async () => {
         try {
-            const result = await window.db.administrateurs.getAll();
+            const result = await db.administrateurs.getAll();
             setAdministrateurs(result || []);
         } catch (error) {
             handleError(error, 'refreshing administrateurs');
@@ -183,7 +184,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshDevis = useCallback(async () => {
         try {
-            const result = await window.db.devis.getAll();
+            const result = await db.devis.getAll();
             setDevis(result || []);
         } catch (error) {
             handleError(error, 'refreshing devis');
@@ -192,7 +193,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshDevisByClient = useCallback(async (clientId: string) => {
         try {
-            const result = await window.db.devis.getByClientId(clientId);
+            const result = await db.devis.getByClientId(clientId);
             setDevis(prev => {
                 const filtered = prev.filter(d => d.clientId !== clientId);
                 return [...filtered, ...(result || [])];
@@ -204,7 +205,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshFactures = useCallback(async () => {
         try {
-            const result = await window.db.factures.getAll();
+            const result = await db.factures.getAll();
             setFactures(result || []);
         } catch (error) {
             handleError(error, 'refreshing factures');
@@ -213,7 +214,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshFacturesByClient = useCallback(async (clientId: string) => {
         try {
-            const result = await window.db.factures.getByClientId(clientId);
+            const result = await db.factures.getByClientId(clientId);
             setFactures(prev => {
                 const filtered = prev.filter(f => f.clientId !== clientId);
                 return [...filtered, ...(result || [])];
@@ -225,7 +226,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshLignesDocuments = useCallback(async () => {
         try {
-            const result = await window.db.lignesDocuments.getAll();
+            const result = await db.lignesDocuments.getAll();
             setLignesDocuments(result || []);
         } catch (error) {
             handleError(error, 'refreshing lignes documents');
@@ -234,7 +235,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshTechniciens = useCallback(async () => {
         try {
-            const result = await window.db.techniciens.getAll();
+            const result = await db.techniciens.getAll();
             setTechniciens(result || []);
         } catch (error) {
             handleError(error, 'refreshing techniciens');
@@ -243,7 +244,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshProjets = useCallback(async () => {
         try {
-            const result = await window.db.projets.getAll();
+            const result = await db.projets.getAll();
             setProjets(result || []);
         } catch (error) {
             handleError(error, 'refreshing projets');
@@ -252,7 +253,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshTachesProjet = useCallback(async (projetId: string) => {
         try {
-            const result = await window.db.tachesProjet.getByProjetId(projetId);
+            const result = await db.tachesProjet.getByProjetId(projetId);
             setTachesProjet(prev => {
                 const filtered = prev.filter(t => t.projetId !== projetId);
                 return [...filtered, ...(result || [])];
@@ -264,7 +265,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshLignesDocumentsByArticle = useCallback(async (articleId: string) => {
         try {
-            const result = await window.db.lignesDocuments.getByArticleId(articleId);
+            const result = await db.lignesDocuments.getByArticleId(articleId);
             setLignesDocuments(prev => {
                 const filtered = prev.filter(l => l.articleId !== articleId);
                 return [...filtered, ...(result || [])];
@@ -300,7 +301,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createArticle = useCallback(async (data: Partial<Article>) => {
         clearError();
         try {
-            const result = await window.db.articles.create(data);
+            const result = await db.articles.create(data);
             await refreshArticles();
             return result;
         } catch (error) {
@@ -311,7 +312,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateArticle = useCallback(async (id: string, data: Partial<Article>) => {
         clearError();
         try {
-            await window.db.articles.update(id, data);
+            await db.articles.update(id, data);
             await refreshArticles();
         } catch (error) {
             handleError(error, 'updating article');
@@ -321,7 +322,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteArticle = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.articles.delete(id);
+            await db.articles.delete(id);
             await refreshArticles();
         } catch (error) {
             handleError(error, 'deleting article');
@@ -331,7 +332,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createClient = useCallback(async (data: Partial<Client>) => {
         clearError();
         try {
-            const result = await window.db.clients.create(data);
+            const result = await db.clients.create(data);
             await refreshClients();
             return result;
         } catch (error) {
@@ -342,7 +343,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateClient = useCallback(async (id: string, data: Partial<Client>) => {
         clearError();
         try {
-            await window.db.clients.update(id, data);
+            await db.clients.update(id, data);
             await refreshClients();
         } catch (error) {
             handleError(error, 'updating client');
@@ -352,7 +353,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteClient = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.clients.delete(id);
+            await db.clients.delete(id);
             await refreshClients();
         } catch (error) {
             handleError(error, 'deleting client');
@@ -362,7 +363,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createCollection = useCallback(async (data: Partial<Collection>) => {
         clearError();
         try {
-            const result = await window.db.collections.create(data);
+            const result = await db.collections.create(data);
             await refreshCollections();
             return result;
         } catch (error) {
@@ -373,7 +374,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateCollection = useCallback(async (id: string, data: Partial<Collection>) => {
         clearError();
         try {
-            await window.db.collections.update(id, data);
+            await db.collections.update(id, data);
             await refreshCollections();
         } catch (error) {
             handleError(error, 'updating collection');
@@ -383,7 +384,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteCollection = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.collections.delete(id);
+            await db.collections.delete(id);
             await refreshCollections();
         } catch (error) {
             handleError(error, 'deleting collection');
@@ -393,7 +394,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createSousCollection = useCallback(async (data: Partial<SousCollection>) => {
         clearError();
         try {
-            const result = await window.db.sousCollections.create(data);
+            const result = await db.sousCollections.create(data);
             await refreshSousCollections();
             return result;
         } catch (error) {
@@ -404,7 +405,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateSousCollection = useCallback(async (id: string, data: Partial<SousCollection>) => {
         clearError();
         try {
-            await window.db.sousCollections.update(id, data);
+            await db.sousCollections.update(id, data);
             await refreshSousCollections();
         } catch (error) {
             handleError(error, 'updating sous-collection');
@@ -414,7 +415,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteSousCollection = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.sousCollections.delete(id);
+            await db.sousCollections.delete(id);
             await refreshSousCollections();
         } catch (error) {
             handleError(error, 'deleting sous-collection');
@@ -424,7 +425,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createDevis = useCallback(async (data: Partial<Devis>) => {
         clearError();
         try {
-            const result = await window.db.devis.create(data);
+            const result = await db.devis.create(data);
             await refreshDevis();
             return result;
         } catch (error) {
@@ -435,7 +436,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateDevis = useCallback(async (id: string, data: Partial<Devis>) => {
         clearError();
         try {
-            await window.db.devis.update(id, data);
+            await db.devis.update(id, data);
             await refreshDevis();
         } catch (error) {
             handleError(error, 'updating devis');
@@ -445,7 +446,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteDevis = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.devis.delete(id);
+            await db.devis.delete(id);
             await refreshDevis();
         } catch (error) {
             handleError(error, 'deleting devis');
@@ -455,7 +456,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createFacture = useCallback(async (data: Partial<Facture>) => {
         clearError();
         try {
-            const result = await window.db.factures.create(data);
+            const result = await db.factures.create(data);
             await refreshFactures();
             return result;
         } catch (error) {
@@ -466,7 +467,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateFacture = useCallback(async (id: string, data: Partial<Facture>) => {
         clearError();
         try {
-            await window.db.factures.update(id, data);
+            await db.factures.update(id, data);
             await refreshFactures();
         } catch (error) {
             handleError(error, 'updating facture');
@@ -476,7 +477,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteFacture = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.factures.delete(id);
+            await db.factures.delete(id);
             await refreshFactures();
         } catch (error) {
             handleError(error, 'deleting facture');
@@ -486,7 +487,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createLigneDocument = useCallback(async (data: Partial<LigneDocument>) => {
         clearError();
         try {
-            const result = await window.db.lignesDocuments.create(data);
+            const result = await db.lignesDocuments.create(data);
             await refreshLignesDocuments();
             return result;
         } catch (error) {
@@ -497,7 +498,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateLigneDocument = useCallback(async (id: string, data: Partial<LigneDocument>) => {
         clearError();
         try {
-            await window.db.lignesDocuments.update(id, data);
+            await db.lignesDocuments.update(id, data);
             await refreshLignesDocuments();
         } catch (error) {
             handleError(error, 'updating ligne document');
@@ -507,7 +508,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteLigneDocument = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.lignesDocuments.delete(id);
+            await db.lignesDocuments.delete(id);
             await refreshLignesDocuments();
         } catch (error) {
             handleError(error, 'deleting ligne document');
@@ -517,7 +518,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createTechnicien = useCallback(async (data: Partial<Technicien>) => {
         clearError();
         try {
-            const result = await window.db.techniciens.create(data);
+            const result = await db.techniciens.create(data);
             await refreshTechniciens();
             return result;
         } catch (error) { handleError(error, 'creating technicien'); }
@@ -526,7 +527,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateTechnicien = useCallback(async (id: string, data: Partial<Technicien>) => {
         clearError();
         try {
-            await window.db.techniciens.update(id, data);
+            await db.techniciens.update(id, data);
             await refreshTechniciens();
         } catch (error) { handleError(error, 'updating technicien'); }
     }, [refreshTechniciens]);
@@ -534,7 +535,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteTechnicien = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.techniciens.delete(id);
+            await db.techniciens.delete(id);
             await refreshTechniciens();
         } catch (error) { handleError(error, 'deleting technicien'); }
     }, [refreshTechniciens]);
@@ -542,7 +543,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createProjet = useCallback(async (data: Partial<Projet>) => {
         clearError();
         try {
-            const result = await window.db.projets.create(data);
+            const result = await db.projets.create(data);
             await refreshProjets();
             return result;
         } catch (error) { handleError(error, 'creating projet'); }
@@ -551,7 +552,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateProjet = useCallback(async (id: string, data: Partial<Projet>) => {
         clearError();
         try {
-            await window.db.projets.update(id, data);
+            await db.projets.update(id, data);
             await refreshProjets();
         } catch (error) { handleError(error, 'updating projet'); }
     }, [refreshProjets]);
@@ -559,7 +560,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteProjet = useCallback(async (id: string) => {
         clearError();
         try {
-            await window.db.projets.delete(id);
+            await db.projets.delete(id);
             await refreshProjets();
         } catch (error) { handleError(error, 'deleting projet'); }
     }, [refreshProjets]);
@@ -567,7 +568,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const createTacheProjet = useCallback(async (data: Partial<TacheProjet>) => {
         clearError();
         try {
-            const result = await window.db.tachesProjet.create(data);
+            const result = await db.tachesProjet.create(data);
             if (data.projetId) await refreshTachesProjet(data.projetId);
             return result;
         } catch (error) { handleError(error, 'creating tache projet'); }
@@ -576,7 +577,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const updateTacheProjet = useCallback(async (id: string, data: Partial<TacheProjet>) => {
         clearError();
         try {
-            await window.db.tachesProjet.update(id, data);
+            await db.tachesProjet.update(id, data);
             if (data.projetId) await refreshTachesProjet(data.projetId);
         } catch (error) { handleError(error, 'updating tache projet'); }
     }, [refreshTachesProjet]);
@@ -584,7 +585,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const deleteTacheProjet = useCallback(async (id: string, projetId: string) => {
         clearError();
         try {
-            await window.db.tachesProjet.delete(id);
+            await db.tachesProjet.delete(id);
             await refreshTachesProjet(projetId);
         } catch (error) { handleError(error, 'deleting tache projet'); }
     }, [refreshTachesProjet]);
@@ -592,7 +593,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const loadImage = useCallback(async (filename: string): Promise<string | null> => {
 
         try {
-            return await window.db.images.get(filename);
+            return await db.images.get(filename);
         } catch (error) {
             console.error('Erreur lors du chargement de l\'image:', error);
             return null;
@@ -613,10 +614,19 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         refreshAll();
     }, [refreshAll]);
 
+    const derivedCollections = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const a of articles) {
+            if (!a.collectionId) continue;
+            counts.set(a.collectionId, (counts.get(a.collectionId) ?? 0) + 1);
+        }
+        return collections.map(c => ({ ...c, quantite: counts.get(c.id) ?? 0 }));
+    }, [collections, articles]);
+
     const contextValue = useMemo(() => ({
         articles,
         clients,
-        collections,
+        collections: derivedCollections,
         sousCollections,
         administrateurs,
         devis,
@@ -679,7 +689,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }), [
         articles,
         clients,
-        collections,
+        derivedCollections,
         sousCollections,
         administrateurs,
         devis,

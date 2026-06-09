@@ -363,6 +363,7 @@ export interface TacheProjet {
   statut        : StatutTache
   priorite      : PrioriteTache
   technicienIds : ID[]           // JSON en base
+  dateDebut    ?: ISODateString
   dateEcheance ?: ISODateString
   ordre         : number
   createdAt     : ISODateString

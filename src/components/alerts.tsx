@@ -10,7 +10,7 @@ type ConfirmOptions = {
 
 type ToastKind = 'success' | 'info' | 'error' | 'warning';
 
-type ToastOptions = { persistent?: boolean; key?: string };
+type ToastOptions = { persistent?: boolean; key?: string; link?: string; linkLabel?: string };
 
 type Toast = {
     id: number;
@@ -19,6 +19,8 @@ type Toast = {
     message?: string;
     persistent?: boolean;
     key?: string;
+    link?: string;
+    linkLabel?: string;
 };
 
 type AlertContextValue = {
@@ -27,6 +29,7 @@ type AlertContextValue = {
     success: (title: string, message?: string, opts?: ToastOptions) => void;
     error: (title: string, message?: string, opts?: ToastOptions) => void;
     warn: (title: string, message?: string, opts?: ToastOptions) => void;
+    dismiss: (key: string) => void;
 };
 
 const AlertContext = createContext<AlertContextValue | null>(null);
@@ -53,6 +56,8 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
             ...(message !== undefined ? { message } : {}),
             ...(opts?.persistent ? { persistent: true } : {}),
             ...(opts?.key ? { key: opts.key } : {}),
+            ...(opts?.link ? { link: opts.link } : {}),
+            ...(opts?.linkLabel ? { linkLabel: opts.linkLabel } : {}),
         };
         setToasts((t) => {
             if (toast.key && t.some((x) => x.key === toast.key)) {
@@ -67,13 +72,18 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    const dismiss = useCallback((key: string) => {
+        setToasts((t) => t.filter((x) => x.key !== key));
+    }, []);
+
     const value = useMemo<AlertContextValue>(() => ({
         confirm: (opts) => new Promise<boolean>((resolve) => setConfirmState({ ...opts, resolve })),
         notify: (title, message, opts) => push('info', title, message, opts),
         success: (title, message, opts) => push('success', title, message, opts),
         error: (title, message, opts) => push('error', title, message, opts),
         warn: (title, message, opts) => push('warning', title, message, opts),
-    }), [push]);
+        dismiss,
+    }), [push, dismiss]);
 
     const closeConfirm = (result: boolean) => {
         if (!confirmState) return;
@@ -160,6 +170,7 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: nu
 }
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+    const [expanded, setExpanded] = useState(false);
     const styles = {
         success: { bar: 'bg-emerald-500', icon: 'text-emerald-600 bg-emerald-50' },
         info: { bar: 'bg-slate-500', icon: 'text-slate-600 bg-slate-100' },
@@ -167,8 +178,19 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         warning: { bar: 'bg-amber-500', icon: 'text-amber-600 bg-amber-50' },
     }[toast.kind];
 
+    const goToLink = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!toast.link) return;
+        const target = toast.link.startsWith('#') ? toast.link : `#${toast.link.startsWith('/') ? '' : '/'}${toast.link}`;
+        window.location.hash = target;
+        onDismiss();
+    };
+
     return (
-        <div className="pointer-events-auto w-120 bg-gray-800 rounded-lg shadow-lg border border-slate-200 overflow-hidden animate-[slideIn_.2s_ease-out]">
+        <div
+            onClick={() => setExpanded((v) => !v)}
+            className="pointer-events-auto w-120 bg-gray-800 rounded-lg shadow-lg border border-slate-200 overflow-hidden animate-[slideIn_.2s_ease-out] cursor-pointer"
+        >
             <div className="flex">
                 <div className={`w-1 ${styles.bar}`} />
                 <div className="flex-1 p-3 flex gap-3">
@@ -187,13 +209,22 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
                         )}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-slate-50 truncate">{toast.title}</div>
+                        <div className={`text-sm font-medium text-slate-50 ${expanded ? 'whitespace-pre-line wrap-break-word' : 'truncate'}`}>{toast.title}</div>
                         {toast.message && (
-                            <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">{toast.message}</div>
+                            <div className={`text-xs text-slate-400 mt-0.5 ${expanded ? 'whitespace-pre-line wrap-break-word' : 'line-clamp-2'}`}>{toast.message}</div>
+                        )}
+                        {expanded && toast.link && (
+                            <button
+                                onClick={goToLink}
+                                className="mt-2 inline-flex items-center gap-1 h-7 px-3 rounded-full bg-white/10 hover:bg-white/20 text-slate-50 text-xs"
+                            >
+                                {toast.linkLabel ?? 'Ouvrir'}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+                            </button>
                         )}
                     </div>
                     <button
-                        onClick={onDismiss}
+                        onClick={(e) => { e.stopPropagation(); onDismiss(); }}
                         className="shrink-0 text-slate-400 hover:text-slate-600 text-lg leading-none"
                         aria-label="Fermer"
                     >

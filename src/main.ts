@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Menu, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, shell, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import * as XLSX from 'xlsx';
 import started from 'electron-squirrel-startup';
 import {
   checkDatabase,
@@ -85,6 +86,8 @@ import {
   logout as authLogout,
   getCurrentUser,
   hasPermission,
+  createUser as authCreateUser,
+  updateUserPassword as authUpdateUserPassword,
 } from './Databases/auth';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -103,9 +106,20 @@ initializeTables().then(() => {
 // ======================== IPC HANDLERS - AUTH ========================
 ipcMain.handle('auth:isSetupDone', async () => isSetupDone());
 ipcMain.handle('auth:setup', async (_event, data) => setupFirstAdmin(data));
-ipcMain.handle('auth:login', async (_event, email: string, motDePasse: string) =>
-  authLogin(email, motDePasse),
-);
+ipcMain.handle('auth:login', async (_event, email: string, motDePasse: string) => {
+  const res = await authLogin(email, motDePasse);
+  if (res?.ok) {
+    // Connexion locale OK → on tente aussi le login serveur pour activer la sync.
+    // Échec serveur (offline, URL non configurée, etc.) ne bloque PAS la session locale.
+    try {
+      const syncRes = await performSyncLogin(email, motDePasse);
+      if (!syncRes.ok) console.warn('[auth:login] sync login skipped:', syncRes.error);
+    } catch (e) {
+      console.warn('[auth:login] sync login threw:', e);
+    }
+  }
+  return res;
+});
 ipcMain.handle('auth:logout', async () => {
   authLogout();
   return { ok: true };
@@ -113,6 +127,10 @@ ipcMain.handle('auth:logout', async () => {
 ipcMain.handle('auth:me', async () => getCurrentUser());
 ipcMain.handle('auth:hasPermission', async (_event, action: string) =>
   hasPermission(action),
+);
+ipcMain.handle('auth:createUser', async (_event, data) => authCreateUser(data));
+ipcMain.handle('auth:updateUserPassword', async (_event, id: string, motDePasse: string) =>
+  authUpdateUserPassword(id, motDePasse),
 );
 
 // ======================== IPC HANDLERS - ARTICLES ========================
@@ -285,6 +303,285 @@ ipcMain.handle('pdf:generateDevis', async (_event, html: string, filename: strin
 ipcMain.handle('pdf:generateFacture', async (_event, html: string, filename: string) =>
   renderPdfToFile(html, filename, facturesPdfDir),
 );
+
+// ======================== IPC HANDLERS - EXPORT EXCEL ========================
+ipcMain.handle('export:articlesExcel', async () => {
+  try {
+    const [articles, collections, sousCollections] = await Promise.all([
+      getAllArticles(),
+      getAllCollections(),
+      getAllSousCollections(),
+    ]);
+
+    const collectionMap = new Map((collections ?? []).map((c: any) => [c.id, c.nom]));
+    const sousCollectionMap = new Map((sousCollections ?? []).map((s: any) => [s.id, s.nom]));
+
+    const formatDims = (d: any): string => {
+      if (!d || typeof d !== 'object') return '';
+      const L = Number(d.longueur) || 0;
+      const l = Number(d.largeur) || 0;
+      const h = Number(d.hauteur) || 0;
+      if (!L && !l && !h) return '';
+      const parts = [L, l, h].filter((n) => n > 0);
+      return `${parts.join('x')}cm`;
+    };
+
+    const rows = (articles ?? []).map((a: any) => ({
+      Référence: a.reference,
+      Nom: a.nom,
+      Description: a.description ?? '',
+      Collection: collectionMap.get(a.collectionId) ?? '',
+      'Sous-collection': a.sousCollectionId ? (sousCollectionMap.get(a.sousCollectionId) ?? '') : '',
+      Unité: a.unite,
+      'Prix HT': a.prixHT,
+      'Taux TVA (%)': a.tauxTVA,
+      'Prix TTC': a.prixTTC,
+      Dimensions: formatDims(a.dimensions),
+      Stock: a.stockTotal,
+      Statut: a.statut,
+      'Créé le': a.createdAt,
+      'Modifié le': a.updatedAt,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Articles');
+
+    const defaultName = `articles_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Exporter les articles',
+      defaultPath: path.join(app.getPath('documents'), defaultName),
+      filters: [{ name: 'Fichier Excel', extensions: ['xlsx'] }],
+    });
+
+    if (canceled || !filePath) return { canceled: true };
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    fs.writeFileSync(filePath, buffer);
+    return { canceled: false, filePath, count: rows.length };
+  } catch (error) {
+    console.error("Erreur lors de l'export Excel des articles:", error);
+    throw error;
+  }
+});
+
+// ======================== IPC HANDLERS - COMPANY INFO ========================
+const companyInfoPath = path.join(app.getPath('userData'), 'entreprise.json');
+type CustomField = {
+  id: string;
+  type: 'email' | 'tel' | 'url' | 'address' | 'text';
+  label: string;
+  value: string;
+};
+
+const DEFAULT_COMPANY: {
+  nom: string;
+  adresse: string;
+  telephone: string;
+  email: string;
+  logoDataUrl: string;
+  notesDevis: string;
+  notesFacture: string;
+  conditionsPaiement: string;
+  setupDone: boolean;
+  customFields: CustomField[];
+  devisPrefix: string;
+  facturePrefix: string;
+  numeroFormat: string;
+  tvaDefault: number;
+  devise: string;
+} = {
+  nom: 'Kataleya',
+  adresse: 'Douala, Cameroun',
+  telephone: '+237 6XX XX XX XX',
+  email: 'contact@kataleya.com',
+  logoDataUrl: '',
+  notesDevis: '',
+  notesFacture: '',
+  conditionsPaiement: '',
+  setupDone: false,
+  customFields: [],
+  devisPrefix: 'DEV',
+  facturePrefix: 'FAC',
+  numeroFormat: 'PREFIX-YYYY-NNNN',
+  tvaDefault: 19.25,
+  devise: 'FCFA',
+};
+
+function readCompanyInfo(): typeof DEFAULT_COMPANY {
+  try {
+    if (!fs.existsSync(companyInfoPath)) return { ...DEFAULT_COMPANY };
+    const raw = fs.readFileSync(companyInfoPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_COMPANY, ...parsed };
+  } catch (e) {
+    console.error('Erreur lecture entreprise.json:', e);
+    return { ...DEFAULT_COMPANY };
+  }
+}
+
+ipcMain.handle('company:get', async () => readCompanyInfo());
+ipcMain.handle('company:set', async (_event, data: Partial<typeof DEFAULT_COMPANY>) => {
+  const current = readCompanyInfo();
+  const next = { ...current, ...data };
+  fs.writeFileSync(companyInfoPath, JSON.stringify(next, null, 2), 'utf-8');
+  return next;
+});
+
+// ======================== IPC HANDLERS - SYNC CONFIG ========================
+const syncConfigPath = path.join(app.getPath('userData'), 'sync.json');
+
+type SyncConfigShape = {
+  serverUrl: string;
+  token: string;
+  clientId: string;
+  enabled: boolean;
+  syncInterval: number;
+  lastSyncAt: string | null;
+};
+
+const DEFAULT_SYNC: SyncConfigShape = {
+  serverUrl: '',
+  token: '',
+  clientId: '',
+  enabled: false,
+  syncInterval: 60000,
+  lastSyncAt: null,
+};
+
+function readSyncConfig(): SyncConfigShape {
+  try {
+    if (!fs.existsSync(syncConfigPath)) return { ...DEFAULT_SYNC };
+    const raw = fs.readFileSync(syncConfigPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const merged = { ...DEFAULT_SYNC, ...parsed };
+    if (!merged.clientId) {
+      merged.clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      fs.writeFileSync(syncConfigPath, JSON.stringify(merged, null, 2), 'utf-8');
+    }
+    return merged;
+  } catch (e) {
+    console.error('Erreur lecture sync.json:', e);
+    return { ...DEFAULT_SYNC };
+  }
+}
+
+function writeSyncConfig(next: SyncConfigShape): SyncConfigShape {
+  fs.writeFileSync(syncConfigPath, JSON.stringify(next, null, 2), 'utf-8');
+  return next;
+}
+
+ipcMain.handle('sync:getConfig', async () => readSyncConfig());
+
+ipcMain.handle('sync:setConfig', async (_event, data: Partial<SyncConfigShape>) => {
+  const current = readSyncConfig();
+  return writeSyncConfig({ ...current, ...data });
+});
+
+async function attemptLogin(serverUrl: string, email: string, motDePasse: string) {
+  return fetch(`${serverUrl.replace(/\/$/, '')}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: motDePasse }),
+  });
+}
+
+async function pushLocalAdminsToBootstrap(serverUrl: string): Promise<{ ok: boolean; error?: string; inserted?: number }> {
+  try {
+    const admins = await getAllAdministrateurs();
+    if (!admins) return { ok: false, error: 'lecture admins locale échouée' };
+    const eligible = admins.filter((a) => a.role === 'super_admin' || a.role === 'admin');
+    if (eligible.length === 0) {
+      return { ok: false, error: 'Aucun admin/super_admin local à pousser' };
+    }
+    const res = await fetch(`${serverUrl.replace(/\/$/, '')}/auth/bootstrap-admins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admins: eligible }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      return { ok: false, error: (err as any).error || `HTTP ${res.status}` };
+    }
+    const data = (await res.json()) as { ok: boolean; inserted: string[] };
+    return { ok: true, inserted: data.inserted?.length ?? 0 };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erreur réseau' };
+  }
+}
+
+async function performSyncLogin(email: string, motDePasse: string): Promise<{ ok: boolean; error?: string; user?: any }> {
+  const cfg = readSyncConfig();
+  if (!cfg.serverUrl) return { ok: false, error: 'URL serveur manquante' };
+  try {
+    let res = await attemptLogin(cfg.serverUrl, email, motDePasse);
+    if (res.status === 401) {
+      try {
+        const probe = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/auth/needs-bootstrap`);
+        if (probe.ok) {
+          const { needsBootstrap } = (await probe.json()) as { needsBootstrap: boolean };
+          if (needsBootstrap) {
+            const boot = await pushLocalAdminsToBootstrap(cfg.serverUrl);
+            if (!boot.ok) return { ok: false, error: `Pré-bootstrap échoué: ${boot.error}` };
+            res = await attemptLogin(cfg.serverUrl, email, motDePasse);
+          }
+        }
+      } catch (probeErr) {
+        console.warn('[sync:login] needs-bootstrap probe failed', probeErr);
+      }
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      return { ok: false, error: (err as any).error || 'Échec de connexion' };
+    }
+    const data = (await res.json()) as { token: string; user: { id: string; email: string; nom: string; role: string } };
+    writeSyncConfig({ ...cfg, token: data.token, enabled: true });
+    return { ok: true, user: data.user };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erreur réseau' };
+  }
+}
+
+ipcMain.handle('sync:login', async (_event, email: string, motDePasse: string) => performSyncLogin(email, motDePasse));
+
+ipcMain.handle('sync:logout', async () => {
+  const cfg = readSyncConfig();
+  writeSyncConfig({ ...cfg, token: '', enabled: false });
+  return { ok: true };
+});
+
+ipcMain.handle('sync:testConnection', async () => {
+  const cfg = readSyncConfig();
+  if (!cfg.serverUrl) return { ok: false, error: 'URL serveur manquante' };
+  try {
+    const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/health`);
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const data = await res.json();
+    return { ok: true, data };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erreur réseau' };
+  }
+});
+
+ipcMain.handle('sync:initServer', async () => {
+  const cfg = readSyncConfig();
+  if (!cfg.serverUrl || !cfg.token) return { ok: false, error: 'Non connecté' };
+  try {
+    const res = await fetch(`${cfg.serverUrl.replace(/\/$/, '')}/admin/init`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.token}` },
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true, data: await res.json() };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erreur réseau' };
+  }
+});
+
+ipcMain.handle('sync:markLastSync', async () => {
+  const cfg = readSyncConfig();
+  return writeSyncConfig({ ...cfg, lastSyncAt: new Date().toISOString() });
+});
 
 ipcMain.handle('shell:openPath', async (_event, p: string) => shell.openPath(p));
 ipcMain.handle('shell:openExternal', async (_event, url: string) => shell.openExternal(url));

@@ -90,3 +90,11 @@ typings/
 
 # Electron-Forge
 out/
+
+# serveur cache
+.server-cache/
+
+
+# tous les fichiers excel
+*.xlsx
+*.xls

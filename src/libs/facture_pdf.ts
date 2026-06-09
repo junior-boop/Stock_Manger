@@ -1,12 +1,52 @@
 import { Client, Facture, LigneDocument, Paiement } from '../Databases/db.d';
 import { formatDate, formatFCFA, numberToWordsFr } from './format';
 
-const COMPANY = {
+type CustomField = {
+    id: string;
+    type: 'email' | 'tel' | 'url' | 'address' | 'text';
+    label: string;
+    value: string;
+};
+
+type CompanyPdfInfo = {
+    nom: string;
+    adresse: string;
+    telephone: string;
+    email: string;
+    logoDataUrl: string;
+    notesDevis: string;
+    notesFacture: string;
+    conditionsPaiement: string;
+    customFields: CustomField[];
+};
+
+let COMPANY: CompanyPdfInfo = {
     nom: 'Kataleya',
     adresse: 'Douala, Cameroun',
     telephone: '+237 6XX XX XX XX',
     email: 'contact@kataleya.com',
+    logoDataUrl: '',
+    notesDevis: '',
+    notesFacture: '',
+    conditionsPaiement: '',
+    customFields: [],
 };
+
+export function setFactureCompanyInfo(info: Partial<CompanyPdfInfo>) {
+    COMPANY = { ...COMPANY, ...info };
+}
+
+function renderCustomFields(): string {
+    if (!COMPANY.customFields?.length) return '';
+    const escIt = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return COMPANY.customFields
+        .filter((f) => f.value?.trim())
+        .map((f) => {
+            const lbl = f.label?.trim() ? `${escIt(f.label)} : ` : '';
+            return `<div>${lbl}${escIt(f.value)}</div>`;
+        })
+        .join('');
+}
 
 export function buildFactureWhatsAppMessage(facture: Facture, client: Client | undefined): string {
     const name = client
@@ -182,11 +222,15 @@ export function buildRecuPaiementHTML(
 </head>
 <body>
     <div class="header">
-        <div>
-            <div class="company-name">${esc(COMPANY.nom)}</div>
-            <div class="company-info">
-                ${esc(COMPANY.adresse)}<br/>
-                ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+        <div style="display:flex;align-items:center;gap:14px;">
+            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:56px;max-width:140px;object-fit:contain;" />` : ''}
+            <div>
+                <div class="company-name">${esc(COMPANY.nom)}</div>
+                <div class="company-info">
+                    ${esc(COMPANY.adresse)}<br/>
+                    ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+                    ${renderCustomFields()}
+                </div>
             </div>
         </div>
         <div class="doc-meta">
@@ -316,11 +360,15 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined): 
 </head>
 <body>
     <div class="header">
-        <div>
-            <div class="company-name">${esc(COMPANY.nom)}</div>
-            <div class="company-info">
-                ${esc(COMPANY.adresse)}<br/>
-                ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+        <div style="display:flex;align-items:center;gap:14px;">
+            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:56px;max-width:140px;object-fit:contain;" />` : ''}
+            <div>
+                <div class="company-name">${esc(COMPANY.nom)}</div>
+                <div class="company-info">
+                    ${esc(COMPANY.adresse)}<br/>
+                    ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+                    ${renderCustomFields()}
+                </div>
             </div>
         </div>
         <div class="doc-meta">
@@ -366,18 +414,18 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined): 
 
     ${renderPaiements(facture)}
 
-    ${facture.notes || facture.conditionsPaiement ? `
+    ${(facture.notes || COMPANY.notesFacture) || (facture.conditionsPaiement || COMPANY.conditionsPaiement) ? `
         <div class="footer">
-            ${facture.conditionsPaiement ? `
+            ${(facture.conditionsPaiement || COMPANY.conditionsPaiement) ? `
                 <div class="footer-section">
                     <div class="label">Conditions de paiement</div>
-                    <div>${esc(facture.conditionsPaiement)}</div>
+                    <div>${esc(facture.conditionsPaiement || COMPANY.conditionsPaiement)}</div>
                 </div>
             ` : ''}
-            ${facture.notes ? `
+            ${(facture.notes || COMPANY.notesFacture) ? `
                 <div class="footer-section">
                     <div class="label">Notes</div>
-                    <div>${esc(facture.notes)}</div>
+                    <div>${esc(facture.notes || COMPANY.notesFacture)}</div>
                 </div>
             ` : ''}
         </div>
