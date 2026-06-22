@@ -203,6 +203,62 @@ export async function createUser(data: {
   return { ok: true, user: stripHash(created as unknown as Administrateur) };
 }
 
+// Ingère un user provenant du serveur (lors du linking poste) : crée la fiche
+// locale si absente, met à jour le hash sinon. Active la session si demandé.
+// Le hash provient de /public/sync-credentials et permet les logins hors-ligne.
+export async function ingestServerUser(
+  serverUser: {
+    id: string;
+    nom: string;
+    prenom: string;
+    email: string;
+    telephone?: string;
+    role: RoleAdmin;
+    motDePasseHash: string;
+    statut?: 'actif' | 'inactif' | 'archivé';
+  },
+  setSession = true,
+): Promise<{ ok: boolean; error?: string; user?: SessionUser }> {
+  if (!serverUser?.id || !serverUser?.email || !serverUser?.motDePasseHash) {
+    return { ok: false, error: 'Données serveur incomplètes' };
+  }
+  const admins = await getAllAdministrateurs();
+  const existing = admins?.find(
+    (a) => a.id === serverUser.id || a.email.toLowerCase() === serverUser.email.toLowerCase(),
+  );
+  const now = new Date().toISOString();
+  let saved: Administrateur | null = null;
+  if (existing) {
+    const updated = updateAdministrateur(existing.id, {
+      nom: serverUser.nom,
+      prenom: serverUser.prenom,
+      email: serverUser.email,
+      telephone: serverUser.telephone,
+      role: serverUser.role,
+      motDePasseHash: serverUser.motDePasseHash,
+      statut: serverUser.statut ?? 'actif',
+      derniereConnexion: now,
+    } as Partial<Administrateur>);
+    saved = updated ? ({ ...existing, ...updated } as Administrateur) : null;
+  } else {
+    saved = createAdministrateur({
+      nom: serverUser.nom,
+      prenom: serverUser.prenom,
+      email: serverUser.email,
+      telephone: serverUser.telephone,
+      role: serverUser.role,
+      motDePasseHash: serverUser.motDePasseHash,
+      avatar: undefined,
+      statut: serverUser.statut ?? 'actif',
+      derniereConnexion: now,
+    } as unknown as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>) as Administrateur | null;
+  }
+  if (!saved) return { ok: false, error: 'Échec persistance locale' };
+  const safe = stripHash(saved);
+  if (setSession) currentUser = safe;
+  return { ok: true, user: safe };
+}
+
 export async function updateUserPassword(
   id: string,
   motDePasse: string,

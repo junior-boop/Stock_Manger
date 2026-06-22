@@ -35,6 +35,8 @@ type AuthContextType = {
         telephone?: string;
         motDePasse: string;
     }) => Promise<boolean>;
+    linkDevice: (serverUrl: string, email: string, motDePasse: string) => Promise<boolean>;
+    setupOnline: (email: string, motDePasse: string) => Promise<boolean>;
     login: (email: string, motDePasse: string) => Promise<boolean>;
     logout: () => Promise<void>;
     refresh: () => Promise<void>;
@@ -94,6 +96,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         [],
     );
 
+    const linkDevice = useCallback(
+        async (serverUrl: string, email: string, motDePasse: string) => {
+            setError(null);
+            const res = await window.syncApi.linkDevice(serverUrl, email, motDePasse);
+            if (!res.ok) {
+                setError(res.error ?? 'Échec de liaison serveur');
+                return false;
+            }
+            return true;
+        },
+        [],
+    );
+
+    const setupOnline = useCallback(async (email: string, motDePasse: string) => {
+        setError(null);
+        const res = await window.auth.setupOnline(email, motDePasse);
+        if (!res.ok) {
+            setError(res.error ?? 'Échec de connexion');
+            return false;
+        }
+        const role = res.user?.role ?? null;
+        try {
+            await syncClient.start();
+            await syncClient.bootstrapIfEmpty(role);
+        } catch {
+            /* échec sync non bloquant : la session peut s'ouvrir hors-ligne */
+        }
+        setUser(res.user ?? null);
+        setIsSetupDone(true);
+        return true;
+    }, []);
+
     const login = useCallback(async (email: string, motDePasse: string) => {
         setError(null);
         const res = await window.auth.login(email, motDePasse);
@@ -129,8 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [user]);
 
     const value = useMemo(
-        () => ({ user, isSetupDone, isLoading, error, setup, login, logout, refresh, clearError }),
-        [user, isSetupDone, isLoading, error, setup, login, logout, refresh, clearError],
+        () => ({ user, isSetupDone, isLoading, error, setup, linkDevice, setupOnline, login, logout, refresh, clearError }),
+        [user, isSetupDone, isLoading, error, setup, linkDevice, setupOnline, login, logout, refresh, clearError],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -157,6 +191,8 @@ const ROLE_MATRIX: Record<string, Array<SessionUser['role']>> = {
     'factures:create': ['super_admin', 'admin', 'gestionnaire'],
     'factures:modify': ['super_admin', 'admin'],
     'factures:delete': ['super_admin', 'admin'],
+    'boutiques:write': ['super_admin', 'admin'],
+    'boutiques:delete': ['super_admin', 'admin'],
     'paiements:write': ['super_admin', 'admin', 'gestionnaire'],
     'journal:read': ['super_admin', 'admin'],
     'demandes:create': ['gestionnaire', 'vendeur'],

@@ -29,7 +29,6 @@ export default function ProductPage() {
         ordre: 0
     })
 
-
     const handleOpenSousCollection = () => {
         set_sous()
         setLoading(true)
@@ -85,6 +84,7 @@ export default function ProductPage() {
                             </div>
                         </div>)
                     }
+
                     <div className="grid grid-cols-6 w-full gap-5">
                         {
                             articlesForCollection.map(el => <ProductItems data={el} key={el.id} />)

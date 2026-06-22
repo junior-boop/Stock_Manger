@@ -160,6 +160,63 @@ export interface Article {
 
 
 // ─────────────────────────────────────────────
+//  BOUTIQUE / STOCK PAR BOUTIQUE / TRANSFERTS
+// ─────────────────────────────────────────────
+
+/**
+ * Une boutique = un stock physique. La boutique "Stock principal" est
+ * créée automatiquement à la première initialisation (isPrincipal = true)
+ * et reçoit le stock existant des articles lors de la migration.
+ */
+export interface Boutique {
+  id          : ID
+  nom         : string
+  adresse    ?: string            // Texte libre
+  userId     ?: ID                // Responsable (Réf. Administrateur)
+  isPrincipal : boolean           // true uniquement pour la boutique seed
+  statut      : StatutActif
+  createdAt   : ISODateString
+  updatedAt   : ISODateString
+}
+
+/**
+ * Quantité d'un (article, variante?) dans une boutique précise.
+ * Unique sur (boutiqueId, articleId, varianteId).
+ * Source de vérité du stock — Article.stockTotal en est dérivé.
+ */
+export interface StockBoutique {
+  id          : ID
+  boutiqueId  : ID
+  articleId   : ID
+  varianteId ?: ID
+  quantite    : number
+  updatedAt   : ISODateString
+}
+
+/** Sens d'un transfert. */
+export type SensTransfert = 'transfert' | 'ajout' | 'retrait'
+
+/**
+ * Historique des mouvements de stock entre boutiques (ou ajout/retrait).
+ * Pour un transfert simple : boutiqueSourceId + boutiqueDestId remplis.
+ * Pour un ajout : boutiqueSourceId = null, boutiqueDestId = cible.
+ * Pour un retrait : boutiqueSourceId = source, boutiqueDestId = null.
+ */
+export interface TransfertStock {
+  id               : ID
+  articleId        : ID
+  varianteId      ?: ID
+  boutiqueSourceId?: ID
+  boutiqueDestId  ?: ID
+  quantite         : number
+  sens             : SensTransfert
+  userId           : ID            // Réf. Administrateur
+  note            ?: string
+  createdAt        : ISODateString
+}
+
+
+// ─────────────────────────────────────────────
 //  LIGNE DE DOCUMENT (Devis / Facture)
 // ─────────────────────────────────────────────
 
@@ -232,6 +289,8 @@ export interface Devis {
   totalHT         : MontantFCFA   // Somme des montantTotalHT des lignes
   totalTVA        : MontantFCFA
   totalTTC        : MontantFCFA
+  afficherTVA    ?: boolean        // Affiche/masque la TVA sur le PDF et l'aperçu (défaut: true)
+  afficherTVALignes?: boolean      // Affiche/masque la colonne TVA dans les lignes (défaut: true). Si false alors que afficherTVA=true → TVA visible uniquement dans les totaux
   remiseGlobale   : number        // En pourcentage (0 par défaut)
   totalApreRemise : MontantFCFA   // totalTTC après remise globale
   statut          : StatutDevis
@@ -289,6 +348,8 @@ export interface Facture {
   totalHT         : MontantFCFA
   totalTVA        : MontantFCFA
   totalTTC        : MontantFCFA
+  afficherTVA    ?: boolean        // Affiche/masque la TVA sur le PDF et l'aperçu (défaut: true)
+  afficherTVALignes?: boolean      // Affiche/masque la colonne TVA dans les lignes (défaut: true). Si false alors que afficherTVA=true → TVA visible uniquement dans les totaux
   remiseGlobale   : number
   totalApreRemise : MontantFCFA
   montantPayé     : MontantFCFA   // Somme des paiements enregistrés
@@ -381,6 +442,34 @@ export interface TacheProjet {
  * Utile pour le typage des stores (Zustand, Redux, etc.)
  * ou d'un contexte de données local (SQLite, JSON, etc.)
  */
+// ─────────────────────────────────────────────
+//  INVENTAIRE
+// ─────────────────────────────────────────────
+
+export type StatutInventaire = 'brouillon' | 'valide' | 'annule'
+
+export interface LigneInventaire {
+  articleId   : ID
+  varianteId ?: ID | null
+  boutiqueId  : ID
+  /** quantité saisie par l'utilisateur, null = non comptée → on conserve la valeur actuelle */
+  quantiteCompte: number | null
+}
+
+export interface Inventaire {
+  id           : ID
+  /** null = inventaire sur toutes les boutiques */
+  boutiqueId  ?: ID | null
+  status       : StatutInventaire
+  /** chemin du fichier Excel d'export de l'état initial (backup) */
+  exportPath  ?: string | null
+  /** JSON.stringify(LigneInventaire[]) en DB */
+  lignes       : LigneInventaire[]
+  startedAt    : ISODateString
+  validatedAt ?: ISODateString | null
+  createdBy    : ID
+}
+
 export interface Database {
   administrateurs  : Record<ID, Administrateur>
   clients          : Record<ID, Client>
@@ -389,4 +478,7 @@ export interface Database {
   articles         : Record<ID, Article>
   devis            : Record<ID, Devis>
   factures         : Record<ID, Facture>
+  boutiques        : Record<ID, Boutique>
+  stocksBoutique   : Record<ID, StockBoutique>
+  transfertsStock  : Record<ID, TransfertStock>
 }

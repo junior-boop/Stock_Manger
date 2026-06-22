@@ -87,6 +87,7 @@ export default function ClientFormModal({ client, initialName, onClose, onSaved 
             <form
                 onSubmit={submit}
                 onClick={(e) => e.stopPropagation()}
+                data-os-scroll
                 className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">

@@ -93,7 +93,7 @@ function ProjetsAside() {
                     </div>
                 </div>
 
-                <div className="mt-4 flex bg-slate-100 rounded-full p-1 overflow-x-auto">
+                <div data-os-scroll className="mt-4 flex bg-slate-100 rounded-full p-1 overflow-x-auto">
                     {FILTRES.map(t => (
                         <button
                             key={t.id}
@@ -110,7 +110,7 @@ function ProjetsAside() {
                 </div>
             </div>
 
-            <div className="mt-2 flex-1 overflow-y-auto">
+            <div data-os-scroll className="mt-2 flex-1 overflow-y-auto">
                 <div className="px-3 flex flex-col gap-3">
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-8">

@@ -85,7 +85,7 @@ function DevisAside() {
                     </div>
                 </div>
 
-                <div className="mt-4 flex bg-slate-100 rounded-full p-1 overflow-x-auto">
+                <div data-os-scroll className="mt-4 flex bg-slate-100 rounded-full p-1 overflow-x-auto">
                     {STATUTS.map((t) => (
                         <button
                             key={t.id}
@@ -103,7 +103,7 @@ function DevisAside() {
                 </div>
             </div>
 
-            <div className="mt-2 flex-1 overflow-y-auto pr-1">
+            <div data-os-scroll className="mt-2 flex-1 overflow-y-auto pr-1">
                 <div className='px-3 flex flex-col gap-3'>
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-8">

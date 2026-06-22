@@ -614,6 +614,42 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         refreshAll();
     }, [refreshAll]);
 
+    // Réactivité sync : à chaque applyRemoteEntry réussi côté main, on
+    // re-fetch les tables centralisées sans toucher `isLoading` (pas de
+    // spinner global, pas de flash). Coalesce les bursts (un pull peut
+    // appliquer 50 entrées → un seul refresh).
+    useEffect(() => {
+        if (!window.syncApi?.onRemoteChange) return;
+        let pending: number | null = null;
+        const dispose = window.syncApi.onRemoteChange(() => {
+            if (pending !== null) return;
+            pending = window.setTimeout(() => {
+                pending = null;
+                Promise.all([
+                    refreshArticles(),
+                    refreshClients(),
+                    refreshCollections(),
+                    refreshSousCollections(),
+                    refreshAdministrateurs(),
+                    refreshDevis(),
+                    refreshFactures(),
+                    refreshLignesDocuments(),
+                    refreshTechniciens(),
+                    refreshProjets(),
+                ]).catch(() => undefined);
+            }, 80);
+        });
+        return () => {
+            if (pending !== null) window.clearTimeout(pending);
+            dispose();
+        };
+    }, [
+        refreshArticles, refreshClients, refreshCollections,
+        refreshSousCollections, refreshAdministrateurs, refreshDevis,
+        refreshFactures, refreshLignesDocuments, refreshTechniciens,
+        refreshProjets,
+    ]);
+
     const derivedCollections = useMemo(() => {
         const counts = new Map<string, number>();
         for (const a of articles) {

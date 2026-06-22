@@ -57,7 +57,16 @@ export default function FactureNewPage() {
         remiseGlobale: 0,
         notes: '',
         conditionsPaiement: '',
+        afficherTVA: true,
     });
+
+    useEffect(() => {
+        window.companyApi.get().then((info) => {
+            if (typeof info?.afficherTVA === 'boolean') {
+                setValue((v) => ({ ...v, afficherTVA: info.afficherTVA }));
+            }
+        }).catch(() => {});
+    }, []);
 
     const linkedDevis = useMemo(() => devis.find((d) => d.id === linkedDevisId), [devis, linkedDevisId]);
     const eligibleDevis = useMemo(
@@ -81,6 +90,8 @@ export default function FactureNewPage() {
             remiseGlobale: linkedDevis.remiseGlobale ?? 0,
             notes: linkedDevis.notes ?? v.notes,
             conditionsPaiement: linkedDevis.conditionsPaiement ?? v.conditionsPaiement,
+            afficherTVA: linkedDevis.afficherTVA !== false,
+            afficherTVALignes: linkedDevis.afficherTVALignes !== false,
         }));
     }, [linkedDevisId]);
     const [submitting, setSubmitting] = useState(false);
@@ -128,6 +139,8 @@ export default function FactureNewPage() {
             totalTTC: totaux.totalTTC,
             remiseGlobale: value.remiseGlobale,
             totalApreRemise,
+            afficherTVA: value.afficherTVA,
+            afficherTVALignes: value.afficherTVALignes,
             montantPayé,
             montantRestant,
             paiements,
@@ -196,7 +209,7 @@ export default function FactureNewPage() {
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
 
                 <div className="mx-auto max-w-270 mb-4 bg-white rounded-2xl border border-slate-200 p-5">

@@ -1,0 +1,138 @@
+# Tests de validation pour la refonte sync (SYNC_REDESIGN.md).
+# Un bloc = un jalon. À exécuter avec l'extension REST Client (VSCode).
+#
+# Variables : adapter @host et @token avant de jouer.
+# Pour récupérer un token : POST /login (voir auth.ts).
+
+@host = http://localhost:8787
+@email = juniorseppo3@gmail.com
+@password = junior41
+@clientId = test-client-001
+
+###############################################################################
+# ÉTAPE 0 — Login : récupère un Bearer token et l'affiche.
+# REST Client capture la réponse via `@name login` → token réutilisable comme
+# {{login.response.body.token}} dans les blocs suivants.
+# Pour juste *voir* le token : exécute ce bloc, la réponse JSON contient `token`.
+###############################################################################
+# @name login
+POST {{host}}/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+###
+# Token capturé depuis la réponse du bloc nommé `login` ci-dessus.
+@token = {{login.response.body.token}}
+
+###############################################################################
+# ÉTAPE 1 — Phase 1.1 + 1.2 : table sync_state créée + seed rétroactif
+# Attendu : { "total": N > 0, "maxVersion": 1, "byTable": [ ... ] }
+# Si le D1 est totalement vide, total=0 est OK (rien à seeder).
+###############################################################################
+GET {{host}}/admin/sync-state
+Authorization: Bearer {{token}}
+
+###############################################################################
+# ÉTAPE 1 bis — Idempotence : relancer initDatabase ne duplique rien.
+# Attendu : même `total` qu'au call précédent.
+###############################################################################
+POST {{host}}/admin/init
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/admin/sync-state
+Authorization: Bearer {{token}}
+
+###############################################################################
+# ÉTAPE 2 — Phase 1.3 : une écriture POST /:table bumpe sync_state.version
+# (À activer après implémentation du hook write→sync_state.)
+# Procédé :
+#  1. Note le maxVersion actuel via /admin/sync-state.
+#  2. POST un client de test ci-dessous.
+#  3. Re-call /admin/sync-state → maxVersion doit avoir augmenté de 1.
+###############################################################################
+POST {{host}}/clients
+Authorization: Bearer {{token}}
+X-Client-ID: {{clientId}}
+Content-Type: application/json
+
+{
+  "id": "test_client_sync_001",
+  "type": "particulier",
+  "nom": "TestSync",
+  "email": "sync-test@example.com",
+  "telephone": "0000000000",
+  "adresse": "n/a",
+  "statut": "actif",
+  "createdAt": "2026-06-18T00:00:00.000Z",
+  "updatedAt": "2026-06-18T00:00:00.000Z",
+  "createdBy": "test"
+}
+
+###
+GET {{host}}/admin/sync-state
+Authorization: Bearer {{token}}
+
+###############################################################################
+# ÉTAPE 3 — Phase 2.1 : GET /sync-state?since=<version> renvoie l'inventaire
+# Attendu : { items: [...], maxVersion, hasMore, serverTime }
+# Pas de filtre client_id.
+###############################################################################
+GET {{host}}/sync-state?since=0&limit=1000
+Authorization: Bearer {{token}}
+X-Client-ID: {{clientId}}
+
+###############################################################################
+# ÉTAPE 3 bis — Phase 2.2 : GET /sync-state/full?table=clients&since=0
+# Attendu : payload joint sync_state + lignes métier clients.
+###############################################################################
+GET {{host}}/sync-state/full?table=clients&since=0
+Authorization: Bearer {{token}}
+X-Client-ID: {{clientId}}
+
+###############################################################################
+# ÉTAPE 4 — Phase 2.3 : push avec _version obsolète → applied: "server"
+# Préparer : bumper d'abord la version serveur via 2 PUT pour créer du retard.
+#  1. PUT avec _version=1 → applied: client, currentVersion=2
+#  2. PUT avec _version=1 (rejouer) → applied: server, data renvoyé canonique
+###############################################################################
+PUT {{host}}/clients/test_client_sync_001
+Authorization: Bearer {{token}}
+X-Client-ID: {{clientId}}
+Content-Type: application/json
+
+{
+  "_version": 1,
+  "_updatedAt": "2026-06-18T00:01:00.000Z",
+  "nom": "TestSync v2",
+  "updatedAt": "2026-06-18T00:01:00.000Z"
+}
+
+###
+PUT {{host}}/clients/test_client_sync_001
+Authorization: Bearer {{token}}
+X-Client-ID: {{clientId}}
+Content-Type: application/json
+
+{
+  "_version": 1,
+  "_updatedAt": "2026-06-18T00:00:30.000Z",
+  "nom": "TestSync vieux",
+  "updatedAt": "2026-06-18T00:00:30.000Z"
+}
+
+###############################################################################
+# ÉTAPES 5-9 — Phase 3+ : tests côté client Electron
+# À écrire dans un .ts dédié quand on aura attaqué les phases correspondantes.
+###############################################################################
+
+###############################################################################
+# Nettoyage : supprimer le client de test
+###############################################################################
+DELETE {{host}}/clients/test_client_sync_001
+Authorization: Bearer {{token}}
+X-Client-ID: {{clientId}}

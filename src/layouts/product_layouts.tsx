@@ -1,16 +1,17 @@
-import { Outlet, NavLink, useLocation, useParams } from "react-router-dom"
-import { FluentAdd32Regular, FluentCheckmark32Regular, FluentChevronRight32Filled, FluentDelete32Regular, FluentEdit32Regular, FluentSearch32Filled, SvgSpinners180Ring, } from "../libs/icons";
+import { Outlet, NavLink, useLocation, useNavigate, useParams } from "react-router-dom"
+import { FluentAdd32Regular, FluentAlert32Filled, FluentArrowUp32Filled, FluentCheckmark32Regular, FluentChevronRight32Filled, FluentDelete32Regular, FluentEdit32Regular, FluentSearch32Filled, SvgSpinners180Ring, } from "../libs/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Title from "../components/title";
 
 import { useDatabase } from "../databaseProvider"
 
 import { create } from 'zustand'
-import { Collection } from "../Databases/db.d";
+import { Article, Collection, Facture } from "../Databases/db.d";
 import { openNewProductWindow, useImportExcelStore } from "../context/open_product";
 import NewProduct from "../pages/new_product";
 import { useAlerts } from "../components/alerts";
 import { FluentCloudArrowUp32Regular, FluentArrowDownload32Filled } from "../libs/icons";
+import { formatFCFA } from "../libs/format";
 
 type OpenLayout = {
     get: boolean
@@ -132,7 +133,36 @@ export default function ProductLayouts() {
 const HomeGroupPage = () => {
     const { set_import } = useImportExcelStore()
     const { success, error: notifyError } = useAlerts()
+    const { articles, factures } = useDatabase()
+    const navigate = useNavigate()
     const [isExporting, setIsExporting] = useState(false)
+
+    const topArticlesDuMois = useMemo(() => {
+        const now = new Date()
+        const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime()
+        const tally = new Map<string, { id: string; nom: string; qte: number; ca: number }>()
+        for (const f of (factures as Facture[])) {
+            if (f.statut === 'brouillon' || f.statut === 'annulée') continue
+            const t = f.dateEmission ? new Date(f.dateEmission).getTime() : NaN
+            if (Number.isNaN(t) || t < start || t >= end) continue
+            for (const l of f.lignes ?? []) {
+                if (!l.articleId) continue
+                const prev = tally.get(l.articleId) ?? { id: l.articleId, nom: l.designation || 'Article', qte: 0, ca: 0 }
+                prev.qte += l.quantite ?? 0
+                prev.ca += l.montantTotalTTC ?? 0
+                tally.set(l.articleId, prev)
+            }
+        }
+        return Array.from(tally.values()).sort((a, b) => b.ca - a.ca).slice(0, 5)
+    }, [factures])
+
+    const stockFaible = useMemo(() => {
+        return (articles as Article[])
+            .filter((a) => a.statut !== 'inactif' && (a.stockTotal ?? 0) <= 3)
+            .sort((a, b) => (a.stockTotal ?? 0) - (b.stockTotal ?? 0))
+            .slice(0, 5)
+    }, [articles])
 
     const handleExport = async () => {
         if (isExporting) return
@@ -150,7 +180,7 @@ const HomeGroupPage = () => {
     }
 
     return (
-        <div className="h-dvh flex-1 overflow-x-hidden overflow-y-auto">
+        <div data-os-scroll className="h-dvh flex-1 overflow-x-hidden overflow-y-auto">
             <div className="px-10 py-10 flex flex-col gap-8">
                 <div>
                     <h1 className="text-4xl font-light">Produits</h1>
@@ -175,7 +205,101 @@ const HomeGroupPage = () => {
                         <span>{isExporting ? "Export en cours…" : "Exporter en Excel"}</span>
                     </button>
                 </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <InsightCard
+                        title="Top articles vendus"
+                        subtitle="Ce mois-ci"
+                        icon={<FluentArrowUp32Filled className="h-5 w-5 text-emerald-700" />}
+                        tint="bg-emerald-50"
+                        empty="Aucune vente ce mois-ci."
+                        items={topArticlesDuMois.map((a, idx) => ({
+                            key: a.id,
+                            onClick: () => navigate(`/produits/article/${a.id}`),
+                            title: `${idx + 1}. ${a.nom}`,
+                            subtitle: `${a.qte.toLocaleString('fr-FR')} vendu${a.qte > 1 ? 's' : ''}`,
+                            right: (
+                                <div className="text-xs font-semibold text-emerald-700 tabular-nums">
+                                    {formatFCFA(a.ca)}
+                                </div>
+                            ),
+                        }))}
+                    />
+                    <InsightCard
+                        title="Stock faible"
+                        subtitle="≤ 3 unités"
+                        icon={<FluentAlert32Filled className="h-5 w-5 text-rose-700" />}
+                        tint="bg-rose-50"
+                        empty="Aucun article en stock faible."
+                        items={stockFaible.map((a) => ({
+                            key: a.id as string,
+                            onClick: () => navigate(`/produits/article/${a.id}`),
+                            title: a.nom as string,
+                            subtitle: a.reference || '—',
+                            right: (
+                                <div className={`text-xs font-semibold tabular-nums ${(a.stockTotal ?? 0) <= 0 ? 'text-rose-700' : 'text-amber-700'}`}>
+                                    {(a.stockTotal ?? 0) <= 0 ? 'Rupture' : `${a.stockTotal} en stock`}
+                                </div>
+                            ),
+                        }))}
+                    />
+                </div>
             </div>
+        </div>
+    )
+}
+
+type InsightItem = {
+    key: string
+    onClick: () => void
+    title: string
+    subtitle: string
+    right: React.ReactNode
+}
+
+function InsightCard({
+    title, subtitle, icon, tint, items, empty,
+}: {
+    title: string
+    subtitle: string
+    icon: React.ReactNode
+    tint: string
+    items: InsightItem[]
+    empty: string
+}) {
+    return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${tint}`}>
+                    {icon}
+                </div>
+                <div>
+                    <div className="text-sm font-medium text-slate-900">{title}</div>
+                    <div className="text-xs text-gray-400">{subtitle}</div>
+                </div>
+            </div>
+            {items.length === 0 ? (
+                <div className="text-xs text-gray-400 py-6 text-center">{empty}</div>
+            ) : (
+                <div className="flex flex-col gap-1">
+                    {items.map((it) => (
+                        <button
+                            key={it.key}
+                            type="button"
+                            onClick={it.onClick}
+                            className="group w-full flex items-center justify-between gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 transition text-left"
+                        >
+                            <div className="min-w-0">
+                                <div className="text-sm font-medium text-slate-900 truncate">{it.title}</div>
+                                <div className="text-xs text-gray-500 truncate">{it.subtitle}</div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {it.right}
+                                <FluentChevronRight32Filled className="h-3 w-3 text-gray-300 group-hover:text-slate-500" />
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -215,7 +339,7 @@ export function AsideList() {
                 </div>
             </div>
 
-            <div className="mt-2 flex-1 overflow-y-auto">
+            <div data-os-scroll className="mt-2 flex-1 overflow-y-auto">
                 <div className="px-3 flex flex-col gap-2">
                     {filtered.map((el, key) => <GroupeItems data={el} key={key} />)}
                 </div>

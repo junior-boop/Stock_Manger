@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDatabase } from '../databaseProvider';
 import { useAuth } from '../auth/authProvider';
@@ -46,7 +46,16 @@ export default function DevisNewPage() {
         remiseGlobale: 0,
         notes: '',
         conditionsPaiement: '',
+        afficherTVA: true,
     });
+
+    useEffect(() => {
+        window.companyApi.get().then((info) => {
+            if (typeof info?.afficherTVA === 'boolean') {
+                setValue((v) => ({ ...v, afficherTVA: info.afficherTVA }));
+            }
+        }).catch(() => {});
+    }, []);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +79,8 @@ export default function DevisNewPage() {
             totalTTC: totaux.totalTTC,
             remiseGlobale: value.remiseGlobale,
             totalApreRemise: totaux.totalApreRemise,
+            afficherTVA: value.afficherTVA,
+            afficherTVALignes: value.afficherTVALignes,
             statut,
             dateEmission: fromDateInput(value.dateEmission),
             dateValidite: fromDateInput(value.dateValidite),
@@ -124,7 +135,7 @@ export default function DevisNewPage() {
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
                 <DevisForm value={value} onChange={setValue} clients={clients} articles={articles} />
             </div>

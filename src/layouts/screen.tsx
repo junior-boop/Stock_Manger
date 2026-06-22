@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useParams, } from 'react-router-dom';
-import { FluentArchive32Filled, FluentArchive32Regular, FluentArrowDownload32Filled, FluentBox32Filled, FluentBox32Regular, FluentClipboardDataBar32Filled, FluentClipboardDataBar32Regular, FluentFolderLink32Filled, FluentFolderLink32Regular, FluentGridKanban20Filled, FluentGridKanban20Regular, FluentHome32Filled, FluentHome32Regular, FluentPeople28Filled, FluentPeople32Filled, FluentPeople32Regular, FluentReceiptMoney24Filled, FluentReceiptMoney24Regular, FluentSettings32Filled, FluentSettings32Regular } from '../libs/icons';
+import { FluentArchive32Filled, FluentArchive32Regular, FluentArrowDownload32Filled, FluentBox32Filled, FluentBox32Regular, FluentBuildingShop24Filled, FluentBuildingShop24Regular, FluentClipboardDataBar32Filled, FluentClipboardDataBar32Regular, FluentFolderLink32Filled, FluentFolderLink32Regular, FluentGridKanban20Filled, FluentGridKanban20Regular, FluentHome32Filled, FluentHome32Regular, FluentPeople28Filled, FluentPeople32Filled, FluentPeople32Regular, FluentReceiptMoney24Filled, FluentReceiptMoney24Regular, FluentSettings32Filled, FluentSettings32Regular } from '../libs/icons';
 import { QueryBuilder } from '../context/QueryBuilder';
 import { useAuth } from '../auth/authProvider';
 
@@ -24,8 +24,6 @@ export default function Screen() {
         }
 
         if (location.pathname.includes("settings")) setOnNote(true)
-
-        console.log(location.pathname)
     }, [location])
     return (
         <div className="flex w-full h-[calc(100vh-36px)] relative ">
@@ -38,9 +36,11 @@ export default function Screen() {
                         <NavItems icon={(actives) => actives ? <FluentHome32Filled className=" h-6 w-6 text-white" /> : <FluentHome32Regular className='h-6 w-6' />} url="/" tooltip="Accueil" />
                         <NavItems icon={(actives) => actives ? <FluentBox32Filled className=" h-6 w-6 text-white" /> : <FluentBox32Regular className='h-6 w-6' />} url="/produits" tooltip='Produits' />
                         <NavItems icon={(actives) => actives ? <FluentPeople32Filled className=" h-6 w-6 text-white" /> : <FluentPeople32Regular className='h-6 w-6' />} url="/clients" tooltip='Clients' />
-                        <NavItems icon={(actives) => actives ? <FluentReceiptMoney24Filled className=" h-6 w-6 text-white" /> : <FluentReceiptMoney24Regular className='h-6 w-6' />} url="/factures" tooltip='Factures' />
                         <NavItems icon={(actives) => actives ? <FluentClipboardDataBar32Filled className=" h-6 w-6 text-white" /> : <FluentClipboardDataBar32Regular className='h-6 w-6' />} url="/devis" tooltip='Devis' />
+                        <NavItems icon={(actives) => actives ? <FluentReceiptMoney24Filled className=" h-6 w-6 text-white" /> : <FluentReceiptMoney24Regular className='h-6 w-6' />} url="/factures" tooltip='Factures' />
                         <NavItems icon={(actives) => actives ? <FluentFolderLink32Filled className=" h-6 w-6 text-white" /> : <FluentFolderLink32Regular className='h-6 w-6' />} url="/projets" tooltip='Projets' />
+                        <NavItems icon={(actives) => actives ? <FluentBuildingShop24Filled className=" h-6 w-6 text-white" /> : <FluentBuildingShop24Regular className='h-6 w-6' />} url="/boutiques" tooltip='Boutiques' />
+                        <NavItems icon={(actives) => actives ? <FluentArchive32Filled className=" h-6 w-6 text-white" /> : <FluentArchive32Regular className='h-6 w-6' />} url="/stock" tooltip='Stock' />
                         {/* <NavItems icon={(actives) => actives ? <FluentGridKanban20Filled className=" h-6 w-6 text-white" /> : <FluentGridKanban20Regular className='h-6 w-6' />} url="/taches" tooltip='Tâches' /> */}
                     </div>
                 </div>

@@ -10,6 +10,7 @@ import { fromDateInput, toDateInput, formatDate, formatFCFA } from '../libs/form
 import { statutColorFacture, statutLabelFacture } from '../layouts/factures_layouts';
 import { useAlerts } from '../components/alerts';
 import { FluentMoreHorizontal32Regular } from '../libs/icons';
+import Switch from '../components/switch';
 import { buildFactureHTML, buildRecuPaiementHTML } from '../libs/facture_pdf';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -71,6 +72,8 @@ export default function FactureDetailPage() {
                 remiseGlobale: current.remiseGlobale ?? 0,
                 notes: current.notes ?? '',
                 conditionsPaiement: current.conditionsPaiement ?? '',
+                afficherTVA: current.afficherTVA !== false,
+                afficherTVALignes: current.afficherTVALignes !== false,
             });
             setEditing(false);
         }
@@ -89,7 +92,9 @@ export default function FactureDetailPage() {
 
     if (!current || !value) {
         return (
-            <div className="h-full flex items-center justify-center text-gray-400">Facture introuvable.</div>
+            <div key="facture-loading" className="h-full flex items-center justify-center text-gray-400">
+                {factures.length === 0 ? '' : 'Facture introuvable.'}
+            </div>
         );
     }
 
@@ -106,6 +111,12 @@ export default function FactureDetailPage() {
     const creatorName = creator
         ? ([creator.prenom, creator.nom].filter(Boolean).join(' ') || creator.email)
         : '';
+    const adminLookup = (id?: string | null): string | undefined => {
+        if (!id) return undefined;
+        const a = administrateurs.find((x) => x.id === id);
+        if (!a) return undefined;
+        return [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || undefined;
+    };
 
     const echeanceMs = new Date(current.dateEcheance).getTime();
     const joursRetard = !Number.isNaN(echeanceMs) && current.montantRestant > 0
@@ -132,6 +143,8 @@ export default function FactureDetailPage() {
             totalTTC: totaux.totalTTC,
             remiseGlobale: value.remiseGlobale,
             totalApreRemise,
+            afficherTVA: value.afficherTVA,
+            afficherTVALignes: value.afficherTVALignes,
             montantRestant,
             dateEmission: fromDateInput(value.dateEmission),
             dateEcheance: fromDateInput(value.dateEcheance),
@@ -161,7 +174,7 @@ export default function FactureDetailPage() {
             const numeroRecu = `RECU-${current.numero}-${seq}`;
             const cumul = sortedAsc.slice(0, idx + 1).reduce((s, p) => s + (p.montant || 0), 0);
             const factureSnapshot: Facture = { ...current, montantPayé: cumul };
-            const html = buildRecuPaiementHTML(factureSnapshot, client, paiement, numeroRecu);
+            const html = buildRecuPaiementHTML(factureSnapshot, client, paiement, numeroRecu, adminLookup);
             const filePath = await window.pdf.generateFacture(html, numeroRecu);
             await window.shell.openPath(filePath);
             success('Reçu généré', numeroRecu);
@@ -174,7 +187,7 @@ export default function FactureDetailPage() {
         setPdfBusy(true);
         try {
             const client = clients.find((c) => c.id === current.clientId);
-            const html = buildFactureHTML(current, client);
+            const html = buildFactureHTML(current, client, adminLookup);
             const filePath = await window.pdf.generateFacture(html, current.numero);
             await window.shell.openPath(filePath);
             success('PDF généré', current.numero);
@@ -182,6 +195,20 @@ export default function FactureDetailPage() {
             notifyError('Échec génération PDF', err?.message ?? 'Erreur.');
         } finally {
             setPdfBusy(false);
+        }
+    };
+
+    const toggleAfficherTVA = async () => {
+        const next = current.afficherTVA === false;
+        setSubmitting(true);
+        try {
+            await updateFacture(current.id, { afficherTVA: next });
+            setValue((v) => (v ? { ...v, afficherTVA: next } : v));
+            success('TVA', next ? 'TVA affichée' : 'TVA masquée');
+        } catch (err: any) {
+            notifyError('Échec', err?.message ?? 'Erreur.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -251,7 +278,7 @@ export default function FactureDetailPage() {
     const paiements = current.paiements ?? [];
 
     return (
-        <div className="h-full w-full flex flex-col bg-slate-50">
+        <div key={`facture-${current.id}`} className="h-full w-full flex flex-col bg-slate-50">
             <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center gap-3">
                 <div>
                     <div className="flex items-center gap-2">
@@ -355,6 +382,18 @@ export default function FactureDetailPage() {
                                                 )}
                                             </div>
                                         )}
+                                        <div
+                                            onClick={() => { if (!submitting) toggleAfficherTVA(); }}
+                                            className={`w-full px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50 cursor-pointer ${submitting ? 'opacity-50 pointer-events-none' : ''}`}
+                                        >
+                                            <span>Afficher la TVA</span>
+                                            <Switch
+                                                checked={current.afficherTVA !== false}
+                                                onChange={() => toggleAfficherTVA()}
+                                                disabled={submitting}
+                                                aria-label="Afficher la TVA"
+                                            />
+                                        </div>
                                         {can('factures:delete') && (
                                             <>
                                                 <div className="my-1 h-px bg-slate-100" />
@@ -377,7 +416,7 @@ export default function FactureDetailPage() {
                 )}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
 
                 {enRetard && (

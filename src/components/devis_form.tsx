@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Article, CanalEnvoiDevis, Client, DevisEnvoi, GroupeDevis, LigneDocument, SousGroupeDevis } from '../Databases/db.d';
 import { formatDate, formatFCFA } from '../libs/format';
-import { FluentAdd32Regular, FluentDelete32Regular } from '../libs/icons';
+import { FluentAdd32Regular, FluentDelete32Regular, FluentMoreHorizontal32Regular } from '../libs/icons';
 import ClientFormModal from './client_form_modal';
 import { useAlerts } from './alerts';
+import Switch from './switch';
 
 export type DevisFormValue = {
     clientId: string;
@@ -14,6 +15,8 @@ export type DevisFormValue = {
     remiseGlobale: number;
     notes: string;
     conditionsPaiement: string;
+    afficherTVA: boolean;
+    afficherTVALignes?: boolean;
 };
 
 export type Totaux = {
@@ -196,10 +199,99 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
 
     const orphanLignes = value.lignes.filter((l) => !l.groupeId);
 
-    const ligneActions = { updateLigne, removeLigne, readOnly };
+    const afficherTVA = value.afficherTVA !== false;
+    const afficherTVALignes = afficherTVA && value.afficherTVALignes !== false;
+    const ligneActions = { updateLigne, removeLigne, readOnly, afficherTVA: afficherTVALignes };
+    const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
+
+    const toggleAfficherTVA = () => {
+        onChange({ ...value, afficherTVA: !afficherTVA });
+    };
+
+    const toggleAfficherTVALignes = () => {
+        onChange({ ...value, afficherTVALignes: !(value.afficherTVALignes !== false) });
+    };
+
+    const sansTVA = useMemo(() => {
+        if (value.lignes.length === 0) return false;
+        const allZero = value.lignes.every((l) => l.tauxTVA === 0);
+        if (!allZero) return false;
+        return value.lignes.some((l) => {
+            const a = articles.find((x) => x.id === l.articleId);
+            return !!a && a.tauxTVA > 0;
+        });
+    }, [value.lignes, articles]);
+
+    const toggleSansTVA = () => {
+        const nextLignes = value.lignes.map((l) => {
+            if (sansTVA) {
+                const a = articles.find((x) => x.id === l.articleId);
+                const tauxTVA = a ? a.tauxTVA : 0;
+                const prixUnitaireTTC = l.prixUnitaireHT * (1 + tauxTVA / 100);
+                return recomputeLigne({ ...l, tauxTVA, prixUnitaireTTC });
+            }
+            return recomputeLigne({ ...l, tauxTVA: 0, prixUnitaireTTC: l.prixUnitaireHT });
+        });
+        onChange({ ...value, lignes: nextLignes });
+    };
 
     return (
         <div className="space-y-6 mx-auto max-w-270 w-full">
+            {!readOnly && (
+                <div className="flex justify-end">
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setOptionsMenuOpen((v) => !v)}
+                            className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center"
+                            aria-label="Options du devis"
+                        >
+                            <FluentMoreHorizontal32Regular className="w-4 h-4" />
+                        </button>
+                        {optionsMenuOpen && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setOptionsMenuOpen(false)} />
+                                <div className="absolute right-0 mt-1 w-64 bg-white rounded-xl border border-slate-200 shadow-lg z-20 overflow-hidden py-1">
+                                    <div
+                                        onClick={() => toggleAfficherTVA()}
+                                        className="w-full px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50 cursor-pointer"
+                                    >
+                                        <span>Afficher la TVA</span>
+                                        <Switch
+                                            checked={afficherTVA}
+                                            onChange={() => toggleAfficherTVA()}
+                                            aria-label="Afficher la TVA"
+                                        />
+                                    </div>
+                                    <div
+                                        onClick={() => { if (afficherTVA) toggleAfficherTVALignes(); }}
+                                        className={`w-full px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50 cursor-pointer ${!afficherTVA ? 'opacity-40 pointer-events-none' : ''}`}
+                                        title="Si désactivé, la TVA reste visible uniquement dans les totaux"
+                                    >
+                                        <span>Afficher la TVA dans les lignes</span>
+                                        <Switch
+                                            checked={afficherTVALignes}
+                                            onChange={() => toggleAfficherTVALignes()}
+                                            aria-label="Afficher la TVA dans les lignes"
+                                        />
+                                    </div>
+                                    <div
+                                        onClick={() => toggleSansTVA()}
+                                        className="w-full px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50 cursor-pointer"
+                                    >
+                                        <span>Retirer la TVA des calculs</span>
+                                        <Switch
+                                            checked={sansTVA}
+                                            onChange={() => toggleSansTVA()}
+                                            aria-label="Retirer la TVA des calculs"
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
             <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
                 <div className="text-xs uppercase text-gray-400 font-medium">Client & dates</div>
                 <div className="grid grid-cols-4 gap-3">
@@ -366,7 +458,7 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
                 <div className="flex justify-end">
                     <div className="w-full max-w-sm space-y-2 text-sm">
                         <Row label="Total HT" value={formatFCFA(totaux.totalHT)} />
-                        <Row label="Total TVA" value={formatFCFA(totaux.totalTVA)} />
+                        {afficherTVA && <Row label="Total TVA" value={formatFCFA(totaux.totalTVA)} />}
                         <Row label="Total TTC" value={formatFCFA(totaux.totalTTC)} />
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-gray-500">Remise globale</span>
@@ -453,19 +545,20 @@ type LigneActions = {
     updateLigne: (id: string, patch: Partial<LigneDocument>) => void;
     removeLigne: (id: string) => void;
     readOnly?: boolean;
+    afficherTVA?: boolean;
 };
 
 function LignesBlock({ lignes, actions }: { lignes: LigneDocument[]; actions: LigneActions }) {
-    const { updateLigne, removeLigne, readOnly } = actions;
+    const { updateLigne, removeLigne, readOnly, afficherTVA = true } = actions;
     return (
-        <div className="overflow-x-auto">
+        <div data-os-scroll className="overflow-x-auto">
             <table className="w-full text-sm">
                 <thead className="text-xs uppercase text-gray-400">
                     <tr>
                         <th className="text-left pb-2 font-medium w-[40%]">Désignation</th>
                         <th className="text-center pb-2 font-medium w-20">Qté</th>
                         <th className="text-center pb-2 font-medium w-28">P.U. HT</th>
-                        <th className="text-center pb-2 font-medium w-20">TVA %</th>
+                        {afficherTVA && <th className="text-center pb-2 font-medium w-20">TVA %</th>}
                         <th className="text-center pb-2 font-medium w-20">Remise %</th>
                         <th className="text-right pb-2 font-medium w-32">Total TTC</th>
                         {!readOnly && <th className="w-8"></th>}
@@ -487,7 +580,7 @@ function LignesBlock({ lignes, actions }: { lignes: LigneDocument[]; actions: Li
                                 <NumberCell value={l.quantite} disabled={readOnly} onChange={(v) => updateLigne(l.id, { quantite: v })} />
                             </td>
                             <td className="py-2 text-center text-gray-600">{formatFCFA(l.prixUnitaireHT)}</td>
-                            <td className="py-2 text-center text-gray-600">{l.tauxTVA}%</td>
+                            {afficherTVA && <td className="py-2 text-center text-gray-600">{l.tauxTVA}%</td>}
                             <td className="py-2 text-center">
                                 <NumberCell value={l.remise} disabled={readOnly} onChange={(v) => updateLigne(l.id, { remise: v })} />
                             </td>
@@ -575,7 +668,7 @@ function ArticlePicker({
                             onChange={(e) => setQuery(e.target.value)}
                             className="w-full h-9 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
                         />
-                        <div className="mt-2 max-h-72 overflow-y-auto">
+                        <div data-os-scroll className="mt-2 max-h-72 overflow-y-auto">
                             {filtered.length === 0 ? (
                                 <div className="text-sm text-gray-400 text-center py-6">Aucun article.</div>
                             ) : (
@@ -668,7 +761,7 @@ function ClientPicker({
                 className="mt-1 w-full h-10 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
             />
             {open && !disabled && (
-                <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg p-2 z-50 max-h-72 overflow-y-auto">
+                <div data-os-scroll className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg p-2 z-50 max-h-72 overflow-y-auto">
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-4">Aucun client trouvé.</div>
                     ) : filtered.map((c) => (

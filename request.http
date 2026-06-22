@@ -1,0 +1,10 @@
+POST  http://localhost:8787/public/link-device 
+Content-Type: "application/json"
+{
+    "email":"juniorseppo3@gmail.com",
+    "passeword": "junior41"
+}
+
+###
+
+GET http://localhost:8787/c/public/articles

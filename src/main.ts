@@ -13,6 +13,7 @@ import {
   createArticles,
   updateArticles,
   deleteArticles,
+  getArticleHistory,
   // Clients
   getClientById,
   getAllClients,
@@ -78,6 +79,36 @@ import {
   createTacheProjet,
   updateTacheProjet,
   deleteTacheProjet,
+  // Boutiques
+  getBoutiqueById,
+  getAllBoutiques,
+  getBoutiquePrincipale,
+  createBoutique,
+  updateBoutique,
+  deleteBoutique,
+  // StocksBoutique
+  getStockEntry,
+  getStocksByBoutique,
+  getStocksByArticle,
+  adjustStock,
+  recomputeArticleStockTotal,
+  // TransfertsStock
+  executeTransfert,
+  getAllTransfertsStock,
+  getTransfertsByBoutique,
+  // Inventaires
+  getBrouillonInventaire,
+  getInventaireById,
+  getAllInventaires,
+  createInventaire,
+  updateInventaireLignes,
+  cancelInventaire,
+  validateInventaire,
+  // Sync (Phase 4)
+  syncState,
+  applyRemoteEntry,
+  SYNCABLE_TABLES,
+  type RemoteSyncEntry,
 } from './Databases';
 import {
   isSetupDone,
@@ -88,6 +119,7 @@ import {
   hasPermission,
   createUser as authCreateUser,
   updateUserPassword as authUpdateUserPassword,
+  ingestServerUser,
 } from './Databases/auth';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -139,6 +171,7 @@ ipcMain.handle('articles:getAll', async () => getAllArticles());
 ipcMain.handle('articles:create', async (event, data) => createArticles(data));
 ipcMain.handle('articles:update', async (event, id, data) => updateArticles(id, data));
 ipcMain.handle('articles:delete', async (event, id) => deleteArticles(id));
+ipcMain.handle('articles:getHistory', async (_event, id: string) => getArticleHistory(id));
 
 // ======================== IPC HANDLERS - CLIENTS ========================
 ipcMain.handle('clients:getById', async (event, id) => getClientById(id));
@@ -215,6 +248,121 @@ ipcMain.handle('taches-projet:create', async (event, data) => createTacheProjet(
 ipcMain.handle('taches-projet:update', async (event, id, data) => updateTacheProjet(id, data));
 ipcMain.handle('taches-projet:delete', async (event, id) => deleteTacheProjet(id));
 
+// ======================== IPC HANDLERS - BOUTIQUES ========================
+ipcMain.handle('boutiques:getById', async (_event, id) => getBoutiqueById(id));
+ipcMain.handle('boutiques:getAll', async () => getAllBoutiques());
+ipcMain.handle('boutiques:getPrincipale', async () => getBoutiquePrincipale());
+ipcMain.handle('boutiques:create', async (_event, data) => createBoutique(data));
+ipcMain.handle('boutiques:update', async (_event, id, data) => updateBoutique(id, data));
+ipcMain.handle('boutiques:delete', async (_event, id) => deleteBoutique(id));
+
+// ======================== IPC HANDLERS - STOCKS BOUTIQUE ========================
+ipcMain.handle('stocks-boutique:getEntry', async (_event, boutiqueId, articleId, varianteId) =>
+  getStockEntry(boutiqueId, articleId, varianteId));
+ipcMain.handle('stocks-boutique:getByBoutique', async (_event, boutiqueId) => getStocksByBoutique(boutiqueId));
+ipcMain.handle('stocks-boutique:getByArticle', async (_event, articleId) => getStocksByArticle(articleId));
+ipcMain.handle('stocks-boutique:adjust', async (_event, boutiqueId, articleId, varianteId, delta) =>
+  adjustStock(boutiqueId, articleId, varianteId, delta));
+ipcMain.handle('stocks-boutique:recomputeArticleTotal', async (_event, articleId) =>
+  recomputeArticleStockTotal(articleId));
+
+// ======================== IPC HANDLERS - TRANSFERTS STOCK ========================
+ipcMain.handle('transferts-stock:execute', async (_event, data) => executeTransfert(data));
+ipcMain.handle('transferts-stock:getAll', async () => getAllTransfertsStock());
+ipcMain.handle('transferts-stock:getByBoutique', async (_event, boutiqueId) => getTransfertsByBoutique(boutiqueId));
+
+// ======================== IPC HANDLERS - INVENTAIRES ========================
+ipcMain.handle('inventaires:getBrouillon', async () => getBrouillonInventaire());
+ipcMain.handle('inventaires:getById', async (_event, id) => getInventaireById(id));
+ipcMain.handle('inventaires:getAll', async () => getAllInventaires());
+ipcMain.handle('inventaires:create', async (_event, data) => createInventaire(data));
+ipcMain.handle('inventaires:updateLignes', async (_event, id, lignes) => updateInventaireLignes(id, lignes));
+ipcMain.handle('inventaires:cancel', async (_event, id) => cancelInventaire(id));
+ipcMain.handle('inventaires:validate', async (_event, id) => validateInventaire(id));
+
+/**
+ * Sauvegarde automatique de l'état courant des articles en Excel dans
+ * userData/inventaires-backup/. Renvoie le chemin écrit.
+ */
+ipcMain.handle('inventaires:exportCurrentBackup', async () => {
+  try {
+    const [articles, collections, sousCollections] = await Promise.all([
+      getAllArticles(),
+      getAllCollections(),
+      getAllSousCollections(),
+    ]);
+    const collectionMap = new Map((collections ?? []).map((c: any) => [c.id, c.nom]));
+    const sousCollectionMap = new Map((sousCollections ?? []).map((s: any) => [s.id, s.nom]));
+    const rows = (articles ?? []).map((a: any) => ({
+      Référence: a.reference,
+      Nom: a.nom,
+      Collection: collectionMap.get(a.collectionId) ?? '',
+      'Sous-collection': a.sousCollectionId ? (sousCollectionMap.get(a.sousCollectionId) ?? '') : '',
+      Unité: a.unite,
+      'Prix HT': a.prixHT,
+      'Prix TTC': a.prixTTC,
+      Stock: a.stockTotal,
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Articles');
+
+    const backupDir = path.join(app.getPath('userData'), 'inventaires-backup');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const filename = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`;
+    const filePath = path.join(backupDir, filename);
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    fs.writeFileSync(filePath, buffer);
+    return { ok: true, filePath, count: rows.length };
+  } catch (error) {
+    console.error('[inventaires:exportCurrentBackup]', error);
+    return { ok: false, error: (error as Error).message };
+  }
+});
+
+/**
+ * Applique en lot des ajustements de stock (réapprovisionnement).
+ * Chaque entrée ajoute `delta` à la quantité pour le triplet (boutique, article, variante).
+ * Renvoie le nombre d'entrées appliquées.
+ */
+ipcMain.handle('stocks-boutique:adjustBatch', async (_event, entries: Array<{
+  boutiqueId: string; articleId: string; varianteId?: string; delta: number;
+}>) => {
+  let applied = 0;
+  for (const e of entries ?? []) {
+    if (!e || !e.boutiqueId || !e.articleId || !Number.isFinite(e.delta) || e.delta === 0) continue;
+    const r = adjustStock(e.boutiqueId, e.articleId, e.varianteId, e.delta);
+    if (r) applied++;
+  }
+  return { ok: true, applied };
+});
+
+// ======================== IPC HANDLERS - SYNC STATE (Phase 4) ========================
+// Expose le miroir local `sync_state` au renderer pour orchestrer le pull.
+// Tous les writes pull-driven passent par `sync:applyRemote` qui n'appelle pas
+// les wrappers métier (donc ne déclenche pas markDirty) — évite la boucle.
+ipcMain.handle('sync:applyRemote', async (_event, entry: RemoteSyncEntry) => {
+  const ok = await applyRemoteEntry(entry);
+  if (ok) {
+    const payload = { table: entry.table, id: entry.id, deleted: !!entry.deleted };
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('sync:remote-change', payload);
+    }
+  }
+  return ok;
+});
+ipcMain.handle('sync:syncStateMaxVersion', async () => syncState.maxVersion());
+ipcMain.handle('sync:syncStateIsEmpty', async () => syncState.isEmpty());
+ipcMain.handle('sync:syncStateGetDirty', async () => syncState.getDirty());
+ipcMain.handle('sync:syncStateGet', async (_event, table: string, id: string) =>
+  syncState.get(table, id),
+);
+ipcMain.handle('sync:syncStateMarkClean', async (_event, table: string, id: string, version: number) => {
+  syncState.markClean(table, id, version);
+  return true;
+});
+ipcMain.handle('sync:syncableTables', async () => SYNCABLE_TABLES);
+
 // ======================== IPC HANDLER - IMAGES ========================
 const imagesDir = path.join(app.getPath('pictures'), "..", 'images');
 
@@ -239,9 +387,16 @@ ipcMain.handle('images:getPath', async () => {
   return imagesDir;
 });
 
+// Résolution : si `filename` est un chemin absolu (ancienne donnée) on l'utilise
+// tel quel ; sinon on suppose un basename dans imagesDir. Permet aux articles
+// synchronisés (qui stockent uniquement le basename) de fonctionner localement.
+function resolveImagePath(filename: string): string {
+  return path.isAbsolute(filename) ? filename : path.join(imagesDir, filename);
+}
+
 ipcMain.handle('images:get', async (event, filename: string) => {
   try {
-    const filePath = path.join(filename);
+    const filePath = resolveImagePath(filename);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const data = fs.readFileSync(filePath);
       const ext = path.extname(filename).slice(1);
@@ -262,6 +417,48 @@ ipcMain.handle('images:list', async () => {
   } catch (error) {
     console.error('Erreur lors de la liste des images:', error);
     return [];
+  }
+});
+
+// Existence par basename uniquement (utilisé par la sync pour décider si
+// un download est nécessaire).
+ipcMain.handle('images:exists', async (_event, filename: string) => {
+  try {
+    const basename = path.basename(filename);
+    const filePath = path.join(imagesDir, basename);
+    return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+});
+
+// Écriture binaire — accepte un Uint8Array (sérialisé en bytes par
+// contextBridge). Utilisé pour persister localement les images téléchargées
+// depuis le serveur (R2).
+ipcMain.handle('images:saveBinary', async (_event, bytes: Uint8Array, filename: string) => {
+  try {
+    const basename = path.basename(filename);
+    const filePath = path.join(imagesDir, basename);
+    const buffer = Buffer.from(bytes);
+    fs.writeFileSync(filePath, buffer);
+    return filePath;
+  } catch (error) {
+    console.error('Erreur lors de l\'écriture binaire de l\'image:', error);
+    throw error;
+  }
+});
+
+// Lecture binaire — renvoie un Uint8Array (utilisé par la sync pour uploader
+// vers R2 sans repasser par base64).
+ipcMain.handle('images:readBinary', async (_event, filename: string) => {
+  try {
+    const filePath = resolveImagePath(filename);
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+    const data = fs.readFileSync(filePath);
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  } catch (error) {
+    console.error('Erreur lors de la lecture binaire de l\'image:', error);
+    return null;
   }
 });
 
@@ -390,6 +587,7 @@ const DEFAULT_COMPANY: {
   numeroFormat: string;
   tvaDefault: number;
   devise: string;
+  afficherTVA: boolean;
 } = {
   nom: 'Kataleya',
   adresse: 'Douala, Cameroun',
@@ -406,6 +604,7 @@ const DEFAULT_COMPANY: {
   numeroFormat: 'PREFIX-YYYY-NNNN',
   tvaDefault: 19.25,
   devise: 'FCFA',
+  afficherTVA: true,
 };
 
 function readCompanyInfo(): typeof DEFAULT_COMPANY {
@@ -544,6 +743,77 @@ async function performSyncLogin(email: string, motDePasse: string): Promise<{ ok
 
 ipcMain.handle('sync:login', async (_event, email: string, motDePasse: string) => performSyncLogin(email, motDePasse));
 
+// Liaison poste ↔ serveur : valide les credentials super_admin distants puis
+// persiste l'URL serveur en local. Aucune session locale créée à ce stade.
+ipcMain.handle('sync:linkDevice', async (_event, serverUrl: string, email: string, password: string) => {
+  if (!serverUrl || !email || !password) {
+    return { ok: false, error: 'URL, email et mot de passe requis' };
+  }
+  const url = serverUrl.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${url}/public/link-device`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      return { ok: false, error: (err as any).error || `HTTP ${res.status}` };
+    }
+    const cfg = readSyncConfig();
+    writeSyncConfig({ ...cfg, serverUrl: url });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erreur réseau' };
+  }
+});
+
+// Setup en ligne : login user final via /public/login, récupère le hash via
+// /public/sync-credentials, ingère le user en local et active la session.
+// Prérequis : sync:linkDevice doit avoir été appelé (serverUrl persistant).
+ipcMain.handle('auth:setupOnline', async (_event, email: string, password: string) => {
+  const cfg = readSyncConfig();
+  if (!cfg.serverUrl) return { ok: false, error: 'Serveur non lié' };
+  const base = cfg.serverUrl.replace(/\/$/, '');
+  try {
+    const loginRes = await fetch(`${base}/public/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!loginRes.ok) {
+      const err = await loginRes.json().catch(() => ({ error: `HTTP ${loginRes.status}` }));
+      return { ok: false, error: (err as any).error || 'Identifiants invalides' };
+    }
+    const { token, user } = (await loginRes.json()) as {
+      token: string;
+      user: { id: string; email: string; nom: string; prenom: string; role: string };
+    };
+    const credRes = await fetch(`${base}/public/sync-credentials`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!credRes.ok) {
+      const err = await credRes.json().catch(() => ({ error: `HTTP ${credRes.status}` }));
+      return { ok: false, error: (err as any).error || 'Échec récupération credentials' };
+    }
+    const { motDePasseHash } = (await credRes.json()) as { motDePasseHash: string };
+    const ingest = await ingestServerUser({
+      id: user.id,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role as any,
+      motDePasseHash,
+    });
+    if (!ingest.ok) return { ok: false, error: ingest.error };
+    writeSyncConfig({ ...cfg, token, enabled: true });
+    return { ok: true, user: ingest.user };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Erreur réseau' };
+  }
+});
+
 ipcMain.handle('sync:logout', async () => {
   const cfg = readSyncConfig();
   writeSyncConfig({ ...cfg, token: '', enabled: false });
@@ -613,10 +883,10 @@ const createWindow = () => {
     titleBarStyle: 'hidden',
     backgroundColor: '#f8fafc',
     webPreferences: {
-      nodeIntegration: true,
+      nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true, // Nécessaire pour WASM en développement
-      devTools: true,
+      webSecurity: true,
+      devTools: !app.isPackaged,
       experimentalFeatures: true,
 
       preload: path.join(__dirname, 'preload.js'),

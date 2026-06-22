@@ -22,10 +22,15 @@ import ProjetsPage from '../pages/projets';
 import ProjetNewPage from '../pages/projet_new';
 import ProjetDetailPage from '../pages/projet_detail';
 import SettingsPage from '../pages/settings';
+import HomePage from '../pages/home';
+import BoutiquesPage from '../pages/boutiques';
+import StockTransfertsPage from '../pages/stock_transferts';
+import InventairePage from '../pages/inventaire';
 import { AuthProvider, useAuth } from '../auth/authProvider';
 import TitleBar from '../components/titlebar';
 import ImportExcelModal from '../components/import_excel_modal';
 import { AlertsProvider, useAlerts } from '../components/alerts';
+import { SyncRevisionProvider } from '../context/sync_revision';
 import { useDatabase } from '../databaseProvider';
 import { useEffect, useRef, useState } from 'react';
 import { initGlobalScrollbars } from '../libs/scrollbars';
@@ -36,15 +41,20 @@ import { SvgSpinners180RingWithBg } from '../libs/icons';
 const Router = () => {
     const { user, isSetupDone, isLoading } = useAuth();
     const [companyCheck, setCompanyCheck] = useState<'pending' | 'needed' | 'done'>('pending');
+    const [inventaireBrouillon, setInventaireBrouillon] = useState<any | null | 'pending'>('pending');
 
     useEffect(() => {
         if (!user) {
             setCompanyCheck('pending');
+            setInventaireBrouillon('pending');
             return;
         }
         window.companyApi.get()
             .then((info) => setCompanyCheck(info.setupDone ? 'done' : 'needed'))
             .catch(() => setCompanyCheck('done'));
+        window.db.inventaires.getBrouillon()
+            .then((inv: any) => setInventaireBrouillon(inv ?? null))
+            .catch(() => setInventaireBrouillon(null));
     }, [user]);
 
     if (isLoading || isSetupDone === null) {
@@ -78,13 +88,25 @@ const Router = () => {
         return <CompanySetupPage onDone={() => setCompanyCheck('done')} />;
     }
 
+    if (inventaireBrouillon === 'pending') {
+        return (
+            <div className="flex items-center justify-center h-dvh bg-gray-50">
+                <SvgSpinners180RingWithBg className="h-12 w-12 text-blue-600" />
+            </div>
+        );
+    }
+
+    if (inventaireBrouillon) {
+        return <InventairePage inventaire={inventaireBrouillon} onDone={() => setInventaireBrouillon(null)} />;
+    }
+
     return (
         <>
             <InventoryWatcher />
             <ImportExcelModal />
             <Routes>
                 <Route element={<Screen />}>
-                    <Route path="/" element={<div className="p-6">Accueil</div>} />
+                    <Route path="/" element={<HomePage />} />
                     <Route path="/produits" element={<ProductLayouts />}>
                         <Route path="/produits/collections/:id" element={<ProductPage />}>
                             <Route path="/produits/collections/:id?sous_collection=:sousId" element={<ProductPage />} />
@@ -112,6 +134,8 @@ const Router = () => {
                         <Route path=":id" element={<ProjetDetailPage />} />
                     </Route>
                     {/* <Route path="/taches" element={<div className="p-6">Tâches (à venir)</div>} /> */}
+                    <Route path="/boutiques" element={<BoutiquesPage />} />
+                    <Route path="/stock" element={<StockTransfertsPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                 </Route>
             </Routes>
@@ -161,14 +185,16 @@ export default function App() {
     return (
         <AlertsProvider>
             <AuthProvider>
-                <TitleBar />
-                <div className="flex flex-col h-[calc(100vh-36px)] w-full">
-                    <div className="flex-1 min-h-0">
-                        <HashRouter basename="/">
-                            <Router />
-                        </HashRouter>
+                <SyncRevisionProvider>
+                    <TitleBar />
+                    <div className="flex flex-col h-[calc(100vh-36px)] w-full">
+                        <div className="flex-1 min-h-0">
+                            <HashRouter basename="/">
+                                <Router />
+                            </HashRouter>
+                        </div>
                     </div>
-                </div>
+                </SyncRevisionProvider>
             </AuthProvider>
         </AlertsProvider>
     );

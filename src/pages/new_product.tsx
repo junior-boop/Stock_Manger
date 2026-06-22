@@ -197,7 +197,7 @@ export default function NewProduct() {
     const filteredSousCollections = sousCollections.filter(sc => sc.collectionId === id);
 
     return (
-        <div className="absolute right-0 top-0 p-8 rounded-l-3xl bg-white h-full w-[700px] slide-enter overflow-y-auto">
+        <div data-os-scroll className="absolute right-0 top-0 p-8 rounded-l-3xl bg-white h-full w-[700px] slide-enter overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-inter-semibold">Nouveau Produit</h2>
                 <button

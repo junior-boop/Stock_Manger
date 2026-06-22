@@ -379,3 +379,24 @@ export function SvgSpinners180RingWithBg(props: SVGProps<SVGSVGElement>) {
         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>{/* Icon from SVG Spinners by Utkarsh Verma - https://github.com/n3r4zzurr0/svg-spinners/blob/main/LICENSE */}<path fill="currentColor" d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25" /><path fill="currentColor" d="M12,4a8,8,0,0,1,7.89,6.7A1.53,1.53,0,0,0,21.38,12h0a1.5,1.5,0,0,0,1.48-1.75,11,11,0,0,0-21.72,0A1.5,1.5,0,0,0,2.62,12h0a1.53,1.53,0,0,0,1.49-1.3A8,8,0,0,1,12,4Z"><animateTransform attributeName="transform" dur="0.75s" repeatCount="indefinite" type="rotate" values="0 12 12;360 12 12" /></path></svg>
     )
 }
+
+
+export function FluentBuildingShop24Filled(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>{/* Icon from Fluent UI System Icons by Microsoft Corporation - https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE */}<path fill="currentColor" d="M10.495 14.501v7.498H7.5v-7.498zm6.76-1.5h-3.501a.75.75 0 0 0-.75.75v3.502c0 .414.335.75.75.75h3.501a.75.75 0 0 0 .75-.75v-3.502a.75.75 0 0 0-.75-.75m-.75 1.5v2.002h-2.002v-2.002zm-8.34-7.499H3.501v1.165c0 1.18.878 2.157 2.017 2.311l.156.016l.16.005a2.33 2.33 0 0 0 2.327-2.173l.006-.16zm6.165 0H9.666v1.165c0 1.18.878 2.157 2.017 2.311l.156.016l.16.005a2.33 2.33 0 0 0 2.327-2.173l.006-.16zm6.167 0h-4.665l.001 1.165c0 1.18.878 2.157 2.016 2.311l.157.016l.16.005a2.333 2.333 0 0 0 2.327-2.173l.005-.16zM9.061 3.5H6.326L4.47 5.502h3.977zm4.308 0h-2.738l-.616 2.002h3.97zm4.304 0H14.94l.615 2.002h3.976zM2.202 5.742L5.45 2.24a.75.75 0 0 1 .446-.233L6 2h12a.75.75 0 0 1 .475.169l.075.07l3.273 3.53l.03.038c.102.136.148.29.148.44l-.002 1.92c0 .994-.378 1.9-1 2.58V21.25a.75.75 0 0 1-.648.743l-.102.007l-8.253-.001v-8.248a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v8.248L3.752 22a.75.75 0 0 1-.744-.648l-.006-.102L3 10.748a3.82 3.82 0 0 1-.995-2.384L2 8.167V6.29a.73.73 0 0 1 .096-.408l.05-.076z" /></svg>
+    )
+}
+
+
+export function FluentBuildingShop24Regular(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>{/* Icon from Fluent UI System Icons by Microsoft Corporation - https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE */}<path fill="currentColor" d="M18 2a.75.75 0 0 1 .475.169l.075.07l3.273 3.53l.03.038c.102.136.148.29.148.44l-.002 1.92c0 .994-.378 1.9-1 2.58V21.25a.75.75 0 0 1-.648.743l-.102.007H3.752a.75.75 0 0 1-.744-.648l-.006-.102L3 10.748a3.82 3.82 0 0 1-.993-2.353L2 8.167V6.29a.73.73 0 0 1 .096-.408l.065-.095l.04-.046L5.45 2.24a.75.75 0 0 1 .446-.233L6 2zm-2.918 8.442l-.012.018A3.83 3.83 0 0 1 12 12a3.83 3.83 0 0 1-3.084-1.556A3.83 3.83 0 0 1 5.834 12c-.469 0-.918-.084-1.334-.238l.001 8.738H6v-6.748a.75.75 0 0 1 .649-.743L6.75 13h4.496a.75.75 0 0 1 .743.648l.007.102v6.748h7.502v-8.737a3.83 3.83 0 0 1-4.416-1.32M10.495 14.5H7.5v5.998h2.995zm6.76-1.5a.75.75 0 0 1 .743.648l.007.102v3.502a.75.75 0 0 1-.648.743l-.102.007h-3.501a.75.75 0 0 1-.743-.648l-.007-.102V13.75a.75.75 0 0 1 .648-.743l.102-.007zm-.75 1.5h-2.002v2.002h2.001zm-8.34-7.498H3.501v1.165l.007.17l.028.232l.033.156l.05.172l.054.148l.04.094q.047.102.103.198l.103.162l.054.074l.129.156l.142.144l.096.085l.042.034c.315.25.695.422 1.112.483l.18.019l.16.005a2.33 2.33 0 0 0 2.327-2.173l.006-.16zm6.165 0H9.666v1.165c0 1.18.878 2.157 2.017 2.311l.156.016l.16.005a2.33 2.33 0 0 0 2.327-2.173l.006-.16zm6.167 0h-4.665l.001 1.165c0 1.18.878 2.157 2.016 2.311l.157.016l.16.005c.564 0 1.081-.2 1.485-.534l.09-.078l.116-.113l.146-.17q.081-.103.15-.216l.104-.186l.063-.138l.058-.155l.03-.096l.038-.152l.028-.157l.018-.167l.006-.17zM9.062 3.499H6.327L4.47 5.502h3.977zm4.307 0h-2.738l-.616 2.003h3.97zm4.303 0h-2.734l.616 2.003h3.976z" /></svg>
+    )
+}
+
+
+export function RiCloseLine(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>{/* Icon from Remix Icon by Remix Design - https://github.com/Remix-Design/RemixIcon/blob/master/License */}<path fill="currentColor" d="m12 10.587l4.95-4.95l1.414 1.414l-4.95 4.95l4.95 4.95l-1.415 1.414l-4.95-4.95l-4.949 4.95l-1.414-1.415l4.95-4.95l-4.95-4.95L7.05 5.638z" /></svg>
+    )
+}

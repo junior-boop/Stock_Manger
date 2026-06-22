@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDatabase } from '../databaseProvider';
 import { Administrateur, RoleAdmin, Technicien } from '../Databases/db.d';
-import { useAuth } from '../auth/authProvider';
+import { useAuth, usePermissions } from '../auth/authProvider';
 import { useAlerts } from '../components/alerts';
 import { setDevisCompanyInfo } from '../libs/devis_pdf';
 import { setFactureCompanyInfo } from '../libs/facture_pdf';
+import ReapproModal from '../components/reappro_modal';
 
-type Section = 'entreprise' | 'numerotation' | 'sauvegarde' | 'permissions' | 'journal' | 'utilisateurs' | 'techniciens';
+type Section = 'entreprise' | 'numerotation' | 'sauvegarde' | 'permissions' | 'journal' | 'utilisateurs' | 'techniciens' | 'stock';
+
+const SECTION_PERMISSIONS: Record<Section, string> = {
+    entreprise: 'parametres:edit',
+    numerotation: 'parametres:edit',
+    utilisateurs: 'admins:manage',
+    techniciens: 'parametres:edit',
+    permissions: 'admins:manage',
+    stock: 'articles:write',
+    sauvegarde: 'parametres:edit',
+    journal: 'journal:read',
+};
 
 const SECTIONS: { id: Section; label: string; description: string }[] = [
     {
@@ -35,6 +47,11 @@ const SECTIONS: { id: Section; label: string; description: string }[] = [
         description: "Matrice des droits par rôle : qui peut consulter, créer, modifier ou supprimer chaque type de donnée.",
     },
     {
+        id: 'stock',
+        label: 'Stock & inventaire',
+        description: "Réapprovisionner le stock courant ou lancer un inventaire complet (par boutique ou global).",
+    },
+    {
         id: 'sauvegarde',
         label: 'Sauvegarde & synchronisation',
         description: "État de la synchronisation cloud, export et import de la base locale, dernière sauvegarde réussie.",
@@ -47,13 +64,30 @@ const SECTIONS: { id: Section; label: string; description: string }[] = [
 ];
 
 export default function SettingsPage() {
-    const [section, setSection] = useState<Section>('entreprise');
+    const { can } = usePermissions();
+    const visibleSections = SECTIONS.filter(s => can(SECTION_PERMISSIONS[s.id]));
+    const [section, setSection] = useState<Section>(visibleSections[0]?.id ?? 'entreprise');
+
+    if (visibleSections.length === 0) {
+        return (
+            <div className="h-full w-full flex items-center justify-center bg-slate-50">
+                <div className="text-center max-w-md px-6">
+                    <div className="text-base font-medium text-gray-700">Accès restreint</div>
+                    <div className="text-sm text-gray-400 mt-1">
+                        Vous n'avez pas les droits nécessaires pour consulter les paramètres. Contactez un administrateur.
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const allowed = can(SECTION_PERMISSIONS[section]);
 
     return (
         <div className="flex h-full w-full">
             <aside className="w-[350px] h-full bg-white border-r border-slate-100 flex flex-col pt-6 px-3 gap-1 shrink-0">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Paramètres</p>
-                {SECTIONS.map(s => {
+                {visibleSections.map(s => {
                     const active = section === s.id;
                     return (
                         <button
@@ -67,14 +101,26 @@ export default function SettingsPage() {
                     );
                 })}
             </aside>
-            <div key={section} className="flex-1 h-full overflow-y-auto">
-                {section === 'entreprise' && <EntrepriseSection />}
-                {section === 'numerotation' && <NumerotationSection />}
-                {section === 'utilisateurs' && <UtilisateursSection />}
-                {section === 'techniciens' && <TechniciensSection />}
-                {section === 'permissions' && <PermissionsSection />}
-                {section === 'sauvegarde' && <SauvegardeSection />}
-                {section === 'journal' && <JournalSection />}
+            <div data-os-scroll key={section} className="flex-1 h-full overflow-y-auto">
+                {!allowed ? (
+                    <div className="h-full w-full flex items-center justify-center">
+                        <div className="text-center max-w-md px-6">
+                            <div className="text-base font-medium text-gray-700">Section non autorisée</div>
+                            <div className="text-sm text-gray-400 mt-1">Votre rôle ne permet pas d'accéder à cette section.</div>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {section === 'entreprise' && <EntrepriseSection />}
+                        {section === 'numerotation' && <NumerotationSection />}
+                        {section === 'utilisateurs' && <UtilisateursSection />}
+                        {section === 'techniciens' && <TechniciensSection />}
+                        {section === 'permissions' && <PermissionsSection />}
+                        {section === 'stock' && <StockSection />}
+                        {section === 'sauvegarde' && <SauvegardeSection />}
+                        {section === 'journal' && <JournalSection />}
+                    </>
+                )}
             </div>
         </div>
     );
@@ -847,6 +893,7 @@ type NumerotationForm = {
     numeroFormat: string;
     tvaDefault: number;
     devise: string;
+    afficherTVA: boolean;
 };
 
 const EMPTY_NUMEROTATION: NumerotationForm = {
@@ -855,6 +902,7 @@ const EMPTY_NUMEROTATION: NumerotationForm = {
     numeroFormat: 'PREFIX-YYYY-NNNN',
     tvaDefault: 19.25,
     devise: 'FCFA',
+    afficherTVA: true,
 };
 
 const FORMAT_OPTIONS = [
@@ -891,6 +939,7 @@ function NumerotationSection() {
                 numeroFormat: info.numeroFormat || EMPTY_NUMEROTATION.numeroFormat,
                 tvaDefault: typeof info.tvaDefault === 'number' ? info.tvaDefault : EMPTY_NUMEROTATION.tvaDefault,
                 devise: info.devise || EMPTY_NUMEROTATION.devise,
+                afficherTVA: typeof info.afficherTVA === 'boolean' ? info.afficherTVA : EMPTY_NUMEROTATION.afficherTVA,
             });
         }).catch(() => undefined).finally(() => setLoading(false));
     }, []);
@@ -959,6 +1008,21 @@ function NumerotationSection() {
                         <label className="text-xs font-medium text-gray-600">Devise</label>
                         <input value={form.devise} onChange={(e) => setForm((f) => ({ ...f, devise: e.target.value }))} className={inputCls(false)} placeholder="FCFA" />
                     </div>
+                </div>
+
+                <div className="flex items-start justify-between gap-4 pt-2 border-t border-slate-100">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium text-slate-800">Afficher la TVA sur les documents</span>
+                        <span className="text-xs text-gray-500">Valeur par défaut pour les nouveaux devis et factures. Modifiable au cas par cas.</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, afficherTVA: !f.afficherTVA }))}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${form.afficherTVA ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                        aria-pressed={form.afficherTVA}
+                    >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.afficherTVA ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
                 </div>
             </div>
 
@@ -1147,6 +1211,151 @@ function PermissionUserRow({
                 {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
             {saving && <span className="text-[10px] text-gray-400">…</span>}
+        </div>
+    );
+}
+
+// ======================== STOCK & INVENTAIRE ========================
+
+function StockSection() {
+    const { user } = useAuth();
+    const { success, error: notifyError } = useAlerts();
+    const [reapproOpen, setReapproOpen] = useState(false);
+    const [boutiques, setBoutiques] = useState<Array<{ id: string; nom: string; isPrincipal?: boolean | number }>>([]);
+    const [scope, setScope] = useState<string>('');
+    const [starting, setStarting] = useState(false);
+    const [history, setHistory] = useState<any[]>([]);
+
+    const reloadHistory = async () => {
+        const all = await window.db.inventaires.getAll();
+        setHistory(all ?? []);
+    };
+
+    useEffect(() => {
+        window.db.boutiques.getAll().then((bs: any[]) => {
+            setBoutiques(bs ?? []);
+            const principal = (bs ?? []).find((b: any) => b.isPrincipal);
+            setScope(principal?.id ?? '');
+        });
+        reloadHistory();
+    }, []);
+
+    const startInventaire = async () => {
+        if (!user) { notifyError('Erreur', 'Utilisateur non connecté.'); return; }
+        const label = scope === '__all__'
+            ? `inventaire complet (${boutiques.length} boutique(s))`
+            : `inventaire de ${boutiques.find((b) => b.id === scope)?.nom ?? '—'}`;
+        if (!confirm(`Démarrer un ${label} ?\n\nUn fichier Excel de sauvegarde sera créé. L'application restera sur la page d'inventaire jusqu'à validation ou annulation (même après redémarrage).`)) return;
+        setStarting(true);
+        try {
+            const backup = await window.db.inventaires.exportCurrentBackup();
+            if (!backup?.ok) {
+                notifyError('Échec du backup', 'Impossible de créer le fichier de sauvegarde. Inventaire non démarré.');
+                return;
+            }
+            const inv = await window.db.inventaires.create({
+                boutiqueId: scope === '__all__' ? null : scope,
+                exportPath: backup.filePath,
+                createdBy: user.id,
+            });
+            if (!inv) {
+                notifyError('Échec', 'Impossible de créer l\'inventaire.');
+                return;
+            }
+            success('Inventaire démarré', 'Vous allez être redirigé.');
+            window.location.reload();
+        } catch (e) {
+            console.error(e);
+            notifyError('Erreur', (e as Error).message);
+        } finally {
+            setStarting(false);
+        }
+    };
+
+    return (
+        <div className="px-8 py-6 max-w-4xl flex flex-col gap-8">
+            <div>
+                <h2 className="text-xl font-semibold">Stock & inventaire</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Deux opérations distinctes : réapprovisionner ajoute au stock existant; l'inventaire remplace les quantités après comptage physique.</p>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl p-6 flex flex-col gap-4">
+                <div className="flex items-start justify-between gap-6">
+                    <div>
+                        <h3 className="font-semibold">Réapprovisionnement</h3>
+                        <p className="text-sm text-slate-500 mt-1">Ajoute des quantités au stock de la <b>boutique principale</b>. Opération additive, sans risque pour l'historique. Saisie manuelle ou import Excel.</p>
+                    </div>
+                    <button
+                        onClick={() => setReapproOpen(true)}
+                        className="px-5 py-2 bg-blue-700 text-white rounded-full text-sm whitespace-nowrap"
+                    >Réapprovisionner</button>
+                </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl p-6 flex flex-col gap-4">
+                <div>
+                    <h3 className="font-semibold">Nouvel inventaire</h3>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Recompte physique. Un Excel de sauvegarde est créé avant tout. À la validation, les quantités saisies <b>remplacent</b> celles en base. Les articles non comptés gardent leur valeur actuelle.
+                    </p>
+                    <p className="text-xs text-amber-700 mt-2">⚠ Tant qu'un inventaire est en cours, l'application reste sur la page d'inventaire à chaque ouverture.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <label className="text-sm text-slate-600">Portée :</label>
+                    <select
+                        value={scope}
+                        onChange={(e) => setScope(e.target.value)}
+                        className="text-sm p-2 border border-slate-200 rounded-lg bg-white"
+                    >
+                        <option value="__all__">Toutes les boutiques</option>
+                        {boutiques.map((b) => (
+                            <option key={b.id} value={b.id}>{b.nom} {b.isPrincipal ? '(principale)' : ''}</option>
+                        ))}
+                    </select>
+                    <button
+                        onClick={startInventaire}
+                        disabled={starting || !scope}
+                        className="px-5 py-2 bg-emerald-600 text-white rounded-full text-sm disabled:opacity-40"
+                    >{starting ? 'Démarrage…' : 'Démarrer l\'inventaire'}</button>
+                </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl p-6 flex flex-col gap-3">
+                <h3 className="font-semibold">Historique des inventaires</h3>
+                {history.length === 0 && <p className="text-sm text-slate-400">Aucun inventaire enregistré.</p>}
+                {history.length > 0 && (
+                    <table className="w-full text-sm">
+                        <thead className="text-xs uppercase text-slate-500 border-b border-slate-100">
+                            <tr>
+                                <th className="text-left py-2">Date</th>
+                                <th className="text-left py-2">Portée</th>
+                                <th className="text-left py-2">Statut</th>
+                                <th className="text-left py-2">Backup</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {history.map((h) => (
+                                <tr key={h.id} className="border-b border-slate-50">
+                                    <td className="py-2 text-xs">{new Date(h.startedAt).toLocaleString('fr-FR')}</td>
+                                    <td className="py-2 text-xs">{h.boutiqueId ? boutiques.find((b) => b.id === h.boutiqueId)?.nom ?? '—' : 'Toutes'}</td>
+                                    <td className="py-2 text-xs">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs ${h.status === 'valide' ? 'bg-emerald-100 text-emerald-700' : h.status === 'brouillon' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                            {h.status}
+                                        </span>
+                                    </td>
+                                    <td className="py-2 text-xs">
+                                        {h.exportPath ? (
+                                            <button onClick={() => window.shell.showItemInFolder(h.exportPath)} className="text-blue-600 hover:underline">Ouvrir</button>
+                                        ) : '—'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+
+            <ReapproModal open={reapproOpen} onClose={() => setReapproOpen(false)} />
         </div>
     );
 }

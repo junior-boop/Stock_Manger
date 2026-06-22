@@ -19,6 +19,10 @@ declare global {
       techniciens: any;
       projets: any;
       tachesProjet: any;
+      boutiques: any;
+      stocksBoutique: any;
+      transfertsStock: any;
+      inventaires: any;
     };
     win: {
       minimize: () => Promise<void>;
@@ -50,6 +54,7 @@ declare global {
         statut?: 'actif' | 'inactif' | 'archivé';
       }) => Promise<{ ok: boolean; error?: string; user?: any }>;
       updateUserPassword: (id: string, motDePasse: string) => Promise<{ ok: boolean; error?: string }>;
+      setupOnline: (email: string, motDePasse: string) => Promise<{ ok: boolean; error?: string; user?: any }>;
     };
     exportApi: {
       articlesExcel: () => Promise<{ canceled: boolean; filePath?: string; count?: number }>;
@@ -66,6 +71,34 @@ declare global {
       testConnection: () => Promise<{ ok: boolean; data?: { ok: boolean; time: number }; error?: string }>;
       initServer: () => Promise<{ ok: boolean; data?: unknown; error?: string }>;
       markLastSync: () => Promise<SyncConfigShape>;
+      linkDevice: (serverUrl: string, email: string, motDePasse: string) => Promise<{ ok: boolean; error?: string }>;
+      applyRemote: (entry: {
+        table: string;
+        id: string;
+        version: number;
+        deleted?: boolean;
+        data?: Record<string, unknown> | null;
+      }) => Promise<boolean>;
+      syncState: {
+        maxVersion: () => Promise<number>;
+        isEmpty: () => Promise<boolean>;
+        getDirty: () => Promise<Array<{
+          table_name: string;
+          element_id: string;
+          version: number;
+          localVersion: number;
+          dirty: number;
+          deleted: number;
+          lastPulledAt: string | null;
+          lastPushedAt: string | null;
+        }>>;
+        get: (table: string, id: string) => Promise<any | null>;
+        markClean: (table: string, id: string, version: number) => Promise<boolean>;
+      };
+      syncableTables: () => Promise<string[]>;
+      onRemoteChange: (
+        cb: (payload: { table: string; id: string; deleted: boolean }) => void,
+      ) => () => void;
     };
   }
 }
@@ -101,6 +134,7 @@ export type CompanyInfo = {
   numeroFormat: string;
   tvaDefault: number;
   devise: string;
+  afficherTVA: boolean;
 };
 
 // Réexport les APIs pour plus de commodité

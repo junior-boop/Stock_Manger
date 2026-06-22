@@ -710,11 +710,7 @@ class SyncManager {
   }
 
   private isInBrowser(): boolean {
-    console.log("je suis ici");
-    const teste =
-      typeof window !== "undefined" && typeof navigator !== "undefined";
-    console.log("j'ai pu traverser", teste);
-    return teste;
+    return typeof window !== "undefined" && typeof navigator !== "undefined";
   }
 
   private async initializeSyncTables(): Promise<void> {

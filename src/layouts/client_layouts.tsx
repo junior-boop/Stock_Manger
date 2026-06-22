@@ -125,7 +125,7 @@ function ClientAside() {
                     {filtered.length} client{filtered.length > 1 ? 's' : ''}
                 </div>
             </div>
-            <div className="mt-2 flex-1 overflow-y-auto pr-1">
+            <div data-os-scroll className="mt-2 flex-1 overflow-y-auto pr-1">
                 <div className='flex flex-col gap-3 px-3'>
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-8">

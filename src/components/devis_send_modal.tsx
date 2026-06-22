@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CanalEnvoiDevis, Client, Devis } from '../Databases/db.d';
 import { buildDevisHTML, buildWhatsAppMessage, formatPhoneForWhatsApp } from '../libs/devis_pdf';
 import { useAlerts } from './alerts';
+import { useDatabase } from '../databaseProvider';
 
 declare global {
     interface Window {
@@ -28,10 +29,17 @@ type Mode = null | 'pdf' | 'whatsapp' | 'mark';
 
 export default function DevisSendModal({ devis, client, onClose, onSent }: Props) {
     const { success, error: notifyError } = useAlerts();
+    const { administrateurs } = useDatabase();
     const [busy, setBusy] = useState<Mode>(null);
 
     const generatePdf = async (): Promise<string> => {
-        const html = buildDevisHTML(devis, client);
+        const adminLookup = (id?: string | null): string | undefined => {
+            if (!id) return undefined;
+            const a = administrateurs.find((x) => x.id === id);
+            if (!a) return undefined;
+            return [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || undefined;
+        };
+        const html = buildDevisHTML(devis, client, adminLookup);
         return await window.pdf.generateDevis(html, devis.numero);
     };
 

@@ -162,7 +162,7 @@ export default function ProjetDetailPage() {
             </div>
 
             {/* Kanban */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+            <div data-os-scroll className="flex-1 overflow-x-auto overflow-y-hidden">
                 <div className="flex h-full gap-4 px-8 py-6 min-w-max">
                     {COLONNES.map(col => {
                         const colTaches = taches.filter(t => t.statut === col.id);
@@ -181,7 +181,7 @@ export default function ProjetDetailPage() {
                                     </button>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto">
+                                <div data-os-scroll className="flex-1 overflow-y-auto">
                                     <div className='flex flex-col gap-2'>
                                         {colTaches
                                             .sort((a, b) => a.ordre - b.ordre)
@@ -604,7 +604,7 @@ function TacheSlideOver({
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
+                <div data-os-scroll className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
                     <div>
                         <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Titre</label>
                         <TextareaAutosize

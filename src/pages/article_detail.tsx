@@ -39,6 +39,8 @@ export default function ArticleDetail() {
 
     const [images, setImages] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
+    const [history, setHistory] = useState<any[] | null>(null);
+    const [historyLoading, setHistoryLoading] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
     const [zoom, setZoom] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -68,6 +70,15 @@ export default function ArticleDetail() {
             });
         }
     }, [article]);
+
+    useEffect(() => {
+        if (!productId) return;
+        setHistoryLoading(true);
+        (window as any).db.articles.getHistory(productId)
+            .then((events: any[]) => setHistory(events ?? []))
+            .catch(() => setHistory([]))
+            .finally(() => setHistoryLoading(false));
+    }, [productId]);
 
     const loadImages = useCallback(async () => {
         if (imagesPaths && imagesPaths.length > 0) {
@@ -239,33 +250,33 @@ export default function ArticleDetail() {
         <>
             {selectedImage && (
                 <div
-                    className="fixed inset-0 bg-black/90 z-50 flex flex-col"
+                    className="lightbox-overlay fixed inset-0 bg-black/90 z-50 flex flex-col h-[calc(100dvh - 36px)] mt-9"
                     onClick={closeImage}
                 >
-                    <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                    <div className="lightbox-controls absolute top-4 right-4 z-10 flex items-center gap-2">
                         <button
-                            className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-sm"
+                            className="w-10 h-10 bg-white/20 hover:bg-white/30 active:scale-95 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-sm transition-all duration-200"
                             onClick={(e) => { e.stopPropagation(); setZoom(z => Math.min(z + 0.25, 3)); }}
                         >
                             +
                         </button>
                         <button
-                            className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-sm"
+                            className="w-10 h-10 bg-white/20 hover:bg-white/30 active:scale-95 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-sm transition-all duration-200"
                             onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(z - 0.25, 0.5)); }}
                         >
                             −
                         </button>
-                        <span className="px-3 py-1 bg-white/20 rounded-full text-white text-sm backdrop-blur-sm">
+                        <span className="px-3 py-1 bg-white/20 rounded-full text-white text-sm backdrop-blur-sm transition-all duration-200">
                             {Math.round(zoom * 100)}%
                         </span>
                         <button
-                            className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-sm backdrop-blur-sm"
+                            className="w-10 h-10 bg-white/20 hover:bg-white/30 active:scale-95 hover:rotate-180 rounded-full flex items-center justify-center text-white text-sm backdrop-blur-sm transition-all duration-300"
                             onClick={(e) => { e.stopPropagation(); setZoom(1); setPosition({ x: 0, y: 0 }); }}
                         >
                             ↺
                         </button>
                         <button
-                            className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-sm"
+                            className="w-10 h-10 bg-white/20 hover:bg-red-500/60 active:scale-95 hover:rotate-90 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-sm transition-all duration-200"
                             onClick={(e) => { e.stopPropagation(); closeImage(); }}
                         >
                             ×
@@ -275,18 +286,18 @@ export default function ArticleDetail() {
                     {images.length > 1 && (
                         <>
                             <button
-                                className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-2xl backdrop-blur-sm z-10"
+                                className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 hover:bg-white/30 hover:-translate-x-1 active:scale-95 rounded-full flex items-center justify-center text-white text-2xl backdrop-blur-sm z-10 transition-all duration-200"
                                 onClick={prevImage}
                                 disabled={selectedImageIndex === 0}
-                                style={{ opacity: selectedImageIndex === 0 ? 0.3 : 1 }}
+                                style={{ opacity: selectedImageIndex === 0 ? 0.3 : 1, transform: selectedImageIndex === 0 ? 'translateY(-50%)' : undefined }}
                             >
                                 ‹
                             </button>
                             <button
-                                className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-2xl backdrop-blur-sm z-10"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 hover:bg-white/30 hover:translate-x-1 active:scale-95 rounded-full flex items-center justify-center text-white text-2xl backdrop-blur-sm z-10 transition-all duration-200"
                                 onClick={nextImage}
                                 disabled={selectedImageIndex === images.length - 1}
-                                style={{ opacity: selectedImageIndex === images.length - 1 ? 0.3 : 1 }}
+                                style={{ opacity: selectedImageIndex === images.length - 1 ? 0.3 : 1, transform: selectedImageIndex === images.length - 1 ? 'translateY(-50%)' : undefined }}
                             >
                                 ›
                             </button>
@@ -309,26 +320,28 @@ export default function ArticleDetail() {
                         onMouseLeave={() => setIsDraggingImg(false)}
                     >
                         <img
+                            key={selectedImageIndex}
                             src={selectedImage}
                             alt={`${article.nom} ${(selectedImageIndex || 0) + 1}`}
-                            className="max-h-[90vh] max-w-[90vw] object-contain select-none"
+                            className="lightbox-image max-h-[90vh] max-w-[90vw] object-contain select-none"
                             style={{
                                 transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
-                                cursor: isDraggingImg ? 'grabbing' : 'grab'
+                                cursor: isDraggingImg ? 'grabbing' : 'grab',
+                                transition: isDraggingImg ? 'none' : 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)'
                             }}
                             draggable={false}
                         />
                     </div>
 
                     {images.length > 1 && (
-                        <span className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
+                        <span className="lightbox-controls absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
                             {(selectedImageIndex || 0) + 1} / {images.length}
                         </span>
                     )}
                 </div>
             )}
 
-            <div className="flex-1 flex flex-col h-full overflow-y-auto">
+            <div data-os-scroll className="flex-1 flex flex-col h-full overflow-y-auto">
                 <div className="h-[72px]"></div>
 
                 <div className="px-10 py-4 border-b border-slate-100 flex justify-between items-center">
@@ -356,19 +369,23 @@ export default function ArticleDetail() {
                             ) : images.length > 0 || newImagePreviews.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-4">
                                     {[...images, ...newImagePreviews].map((img, index) => (
-                                        <div key={index} className="relative group">
+                                        <div
+                                            key={index}
+                                            className="thumb-pop relative group overflow-hidden rounded-2xl"
+                                            style={{ animationDelay: `${Math.min(index * 40, 240)}ms`, opacity: 0 }}
+                                        >
                                             <img
                                                 src={img}
                                                 alt={`${article.nom} ${index + 1}`}
-                                                className="aspect-square object-cover rounded-2xl w-full"
+                                                className="aspect-square object-cover rounded-2xl w-full transition-transform duration-300 ease-out group-hover:scale-[1.04]"
                                                 onClick={isEditing ? undefined : () => openImage(index)}
                                                 draggable={!isEditing}
-                                                style={{ cursor: isEditing ? 'default' : 'pointer' }}
+                                                style={{ cursor: isEditing ? 'default' : 'zoom-in' }}
                                             />
                                             {isEditing && (
                                                 <button
                                                     onClick={() => index < images.length ? removeImage(index) : removeNewImage(index - images.length)}
-                                                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 hover:bg-red-600 hover:scale-110 active:scale-95 text-white rounded-full flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 transition-all duration-200"
                                                 >
                                                     ×
                                                 </button>
@@ -377,7 +394,7 @@ export default function ArticleDetail() {
                                     ))}
                                 </div>
                             ) : (
-                                <div className="aspect-square bg-gray-100 rounded-2xl flex items-center justify-center">
+                                <div className="aspect-square bg-gray-100 rounded-2xl flex items-center justify-center transition-colors duration-300">
                                     <span className="text-gray-400">Pas d'image</span>
                                 </div>
                             )}
@@ -394,7 +411,7 @@ export default function ArticleDetail() {
                                     />
                                     <button
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-2xl text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                                        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-2xl text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/40 active:scale-[0.99] transition-all duration-200"
                                     >
                                         + Ajouter des images
                                     </button>
@@ -585,8 +602,8 @@ export default function ArticleDetail() {
                                             </span>
                                         )}
                                         <span className={`px-3 py-1 rounded-full text-sm ${article.statut === 'actif' ? 'bg-green-100 text-green-800' :
-                                                article.statut === 'inactif' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-gray-100 text-gray-800'
+                                            article.statut === 'inactif' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-gray-100 text-gray-800'
                                             }`}>
                                             {article.statut}
                                         </span>
@@ -636,6 +653,95 @@ export default function ArticleDetail() {
                                 </>
                             )}
                         </div>
+                    </div>
+
+                    <div className="mt-10 border-t border-slate-200 pt-8">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-semibold">Historique</h2>
+                            {history && (
+                                <span className="text-sm text-gray-500">{history.length} mouvement{history.length > 1 ? 's' : ''}</span>
+                            )}
+                        </div>
+                        {historyLoading ? (
+                            <div className="flex justify-center py-8">
+                                <SvgSpinners180RingWithBg className="h-8 w-8 text-blue-600" />
+                            </div>
+                        ) : !history || history.length === 0 ? (
+                            <p className="text-gray-500 text-sm py-6 text-center">Aucun mouvement enregistré.</p>
+                        ) : (
+                            <div className="overflow-hidden border border-slate-200 rounded-xl">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50 text-left text-gray-600">
+                                        <tr>
+                                            <th className="px-4 py-2 font-medium">Date</th>
+                                            <th className="px-4 py-2 font-medium">Type</th>
+                                            <th className="px-4 py-2 font-medium">Détails</th>
+                                            <th className="px-4 py-2 font-medium">Qté</th>
+                                            <th className="px-4 py-2 font-medium">Par</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {history.map((ev: any, idx: number) => {
+                                            const dateStr = ev.date ? new Date(ev.date).toLocaleString('fr-FR') : '—';
+                                            if (ev.type === 'vente') {
+                                                return (
+                                                    <tr key={idx} className="hover:bg-slate-50">
+                                                        <td className="px-4 py-2">{dateStr}</td>
+                                                        <td className="px-4 py-2">
+                                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-xs">Vente</span>
+                                                        </td>
+                                                        <td className="px-4 py-2">
+                                                            <div className="font-medium">{ev.factureNumero}</div>
+                                                            <div className="text-gray-500 text-xs">
+                                                                Client : {ev.clientNom ?? '—'} · {ev.statut}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-2 font-medium">-{ev.quantite}</td>
+                                                        <td className="px-4 py-2 text-gray-700">{ev.vendeurNom ?? '—'}</td>
+                                                    </tr>
+                                                );
+                                            }
+                                            if (ev.type === 'transfert') {
+                                                const sign = ev.sens === 'ajout' ? '+' : ev.sens === 'retrait' ? '-' : '↔';
+                                                const route = ev.sens === 'transfert'
+                                                    ? `${ev.sourceNom ?? '—'} → ${ev.destNom ?? '—'}`
+                                                    : ev.sens === 'ajout'
+                                                        ? `→ ${ev.destNom ?? '—'}`
+                                                        : `${ev.sourceNom ?? '—'} →`;
+                                                return (
+                                                    <tr key={idx} className="hover:bg-slate-50">
+                                                        <td className="px-4 py-2">{dateStr}</td>
+                                                        <td className="px-4 py-2">
+                                                            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs capitalize">{ev.sens}</span>
+                                                        </td>
+                                                        <td className="px-4 py-2">
+                                                            <div className="font-medium">{route}</div>
+                                                            {ev.note && <div className="text-gray-500 text-xs">{ev.note}</div>}
+                                                        </td>
+                                                        <td className="px-4 py-2 font-medium">{sign}{ev.quantite}</td>
+                                                        <td className="px-4 py-2 text-gray-700">{ev.userNom ?? '—'}</td>
+                                                    </tr>
+                                                );
+                                            }
+                                            return (
+                                                <tr key={idx} className="hover:bg-slate-50">
+                                                    <td className="px-4 py-2">{dateStr}</td>
+                                                    <td className="px-4 py-2">
+                                                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs">Inventaire</span>
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        <div className="font-medium">Comptage validé</div>
+                                                        <div className="text-gray-500 text-xs">Boutique : {ev.boutiqueNom ?? '—'}</div>
+                                                    </td>
+                                                    <td className="px-4 py-2 font-medium">={ev.quantiteCompte}</td>
+                                                    <td className="px-4 py-2 text-gray-700">{ev.userNom ?? '—'}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -467,7 +467,7 @@ export default function ImportExcelModal() {
 
                 {step === "map" && (
                     <>
-                    <div className="flex-1 overflow-y-auto p-8">
+                    <div data-os-scroll className="flex-1 overflow-y-auto p-8">
                         <div className="max-w-[900px] mx-auto flex flex-col gap-6">
                             <div className="text-sm text-gray-500">
                                 Pour chaque champ de la base, choisissez la colonne du fichier qui lui correspond. La colonne « Nom du produit » est obligatoire.
@@ -560,7 +560,7 @@ export default function ImportExcelModal() {
                 {step === "review" && (
                     <>
                     <div className="flex-1 flex min-h-0">
-                        <aside className="w-[340px] border-r border-slate-100 flex flex-col p-4 gap-3 overflow-y-auto">
+                        <aside data-os-scroll className="w-[340px] border-r border-slate-100 flex flex-col p-4 gap-3 overflow-y-auto">
                             <div>
                                 <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Affecter à</div>
                                 <select
@@ -685,7 +685,7 @@ export default function ImportExcelModal() {
                                 </button>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto">
+                            <div data-os-scroll className="flex-1 overflow-y-auto">
                                 <table className="w-full text-sm">
                                     <thead className="sticky top-0 bg-white border-b border-slate-100 text-xs uppercase text-gray-400">
                                         <tr>
@@ -772,7 +772,7 @@ export default function ImportExcelModal() {
 
                 {step === "summary" && (
                     <>
-                    <div className="flex-1 overflow-y-auto p-8">
+                    <div data-os-scroll className="flex-1 overflow-y-auto p-8">
                         <div className="max-w-[900px] mx-auto flex flex-col gap-6">
                             <div>
                                 <h3 className="text-lg font-semibold">Récapitulatif de l'affectation</h3>

@@ -3,6 +3,7 @@ import { Client, Facture } from '../Databases/db.d';
 import { buildFactureHTML, buildFactureWhatsAppMessage } from '../libs/facture_pdf';
 import { formatPhoneForWhatsApp } from '../libs/devis_pdf';
 import { useAlerts } from './alerts';
+import { useDatabase } from '../databaseProvider';
 
 type Props = {
     facture: Facture;
@@ -15,10 +16,17 @@ type Mode = null | 'pdf' | 'whatsapp' | 'mark';
 
 export default function FactureSendModal({ facture, client, onClose, onMarkEmise }: Props) {
     const { success, error: notifyError } = useAlerts();
+    const { administrateurs } = useDatabase();
     const [busy, setBusy] = useState<Mode>(null);
 
     const generatePdf = async (): Promise<string> => {
-        const html = buildFactureHTML(facture, client);
+        const adminLookup = (id?: string | null): string | undefined => {
+            if (!id) return undefined;
+            const a = administrateurs.find((x) => x.id === id);
+            if (!a) return undefined;
+            return [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || undefined;
+        };
+        const html = buildFactureHTML(facture, client, adminLookup);
         return await window.pdf.generateFacture(html, facture.numero);
     };
 

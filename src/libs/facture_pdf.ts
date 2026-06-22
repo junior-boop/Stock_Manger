@@ -1,6 +1,8 @@
 import { Client, Facture, LigneDocument, Paiement } from '../Databases/db.d';
 import { formatDate, formatFCFA, numberToWordsFr } from './format';
 
+export type AdminLookup = (id?: string | null) => string | undefined;
+
 type CustomField = {
     id: string;
     type: 'email' | 'tel' | 'url' | 'address' | 'text';
@@ -103,7 +105,7 @@ function renderClientBlock(client: Client | undefined): string {
     `;
 }
 
-function renderLigneRow(l: LigneDocument): string {
+function renderLigneRow(l: LigneDocument, showTVA: boolean): string {
     return `
         <tr>
             <td>
@@ -113,13 +115,13 @@ function renderLigneRow(l: LigneDocument): string {
             <td class="center">${l.quantite} ${esc(l.unite)}</td>
             <td class="center">${formatFCFA(l.prixUnitaireHT)}</td>
             <td class="center">${l.remise ? l.remise + '%' : '—'}</td>
-            <td class="center">${l.tauxTVA}%</td>
+            ${showTVA ? `<td class="center">${l.tauxTVA}%</td>` : ''}
             <td class="right strong">${formatFCFA(l.montantTotalTTC)}</td>
         </tr>
     `;
 }
 
-function renderLignesTable(lignes: LigneDocument[]): string {
+function renderLignesTable(lignes: LigneDocument[], showTVA: boolean): string {
     return `<table class="lignes">
         <thead>
             <tr>
@@ -127,15 +129,15 @@ function renderLignesTable(lignes: LigneDocument[]): string {
                 <th class="center" style="text-align: center;">Qté</th>
                 <th class="center" style="text-align: center;">P.U. HT</th>
                 <th class="center" style="text-align: center;">Remise</th>
-                <th class="center" style="text-align: center;">TVA</th>
+                ${showTVA ? `<th class="center" style="text-align: center;">TVA</th>` : ''}
                 <th class="right" style="text-align: right;">Total TTC</th>
             </tr>
         </thead>
-        <tbody>${lignes.map(renderLigneRow).join('')}</tbody>
+        <tbody>${lignes.map((l) => renderLigneRow(l, showTVA)).join('')}</tbody>
     </table>`;
 }
 
-function renderPaiements(facture: Facture): string {
+function renderPaiements(facture: Facture, adminLookup?: AdminLookup): string {
     const paiements = facture.paiements ?? [];
     if (paiements.length === 0) return '';
     const rows = [...paiements]
@@ -145,6 +147,7 @@ function renderPaiements(facture: Facture): string {
                 <td>${esc(formatDate(p.date))}</td>
                 <td>${esc(modeLabel(p.mode))}</td>
                 <td>${esc(p.reference ?? '—')}</td>
+                <td>${esc(adminLookup?.(p.enregistréPar) ?? '—')}</td>
                 <td class="right strong">${formatFCFA(p.montant)}</td>
             </tr>
         `).join('');
@@ -156,6 +159,7 @@ function renderPaiements(facture: Facture): string {
                     <th>Date</th>
                     <th>Mode</th>
                     <th>Référence</th>
+                    <th>Encaissé par</th>
                     <th class="right" style="text-align: right;">Montant</th>
                 </tr>
             </thead>
@@ -169,7 +173,10 @@ export function buildRecuPaiementHTML(
     client: Client | undefined,
     paiement: Paiement,
     numeroRecu: string,
+    adminLookup?: AdminLookup,
 ): string {
+    const receveurName = adminLookup?.(paiement.enregistréPar);
+    const emetteurName = adminLookup?.(facture.createdBy);
     const clientName = client
         ? (client.type === 'entreprise'
             ? (client.raisonSociale || client.nom)
@@ -273,6 +280,12 @@ export function buildRecuPaiementHTML(
                 <td class="value">${esc(paiement.reference)}</td>
             </tr>
         ` : ''}
+        ${receveurName ? `
+            <tr>
+                <td class="label">Reçu par</td>
+                <td class="value">${esc(receveurName)}</td>
+            </tr>
+        ` : ''}
         <tr>
             <td class="label">Total facture</td>
             <td class="value">${formatFCFA(totalFacture)}</td>
@@ -294,20 +307,26 @@ export function buildRecuPaiementHTML(
     ` : ''}
 
     <div class="footer">
-        <div>Document généré le ${esc(formatDate(new Date().toISOString()))}</div>
+        <div>
+            Document généré le ${esc(formatDate(new Date().toISOString()))}
+            ${emetteurName ? `<br/>Facture émise par ${esc(emetteurName)}` : ''}
+        </div>
         <div class="sig">
-            <div class="sig-line">Signature / Cachet</div>
+            <div class="sig-line">${receveurName ? esc(receveurName) + ' — ' : ''}Signature / Cachet</div>
         </div>
     </div>
 </body>
 </html>`;
 }
 
-export function buildFactureHTML(facture: Facture, client: Client | undefined): string {
+export function buildFactureHTML(facture: Facture, client: Client | undefined, adminLookup?: AdminLookup): string {
     const remiseAmount = facture.totalTTC - facture.totalApreRemise;
+    const creatorName = adminLookup?.(facture.createdBy);
     const montantPayé = facture.montantPayé ?? 0;
     const montantRestant = facture.montantRestant ?? Math.max(0, facture.totalApreRemise - montantPayé);
     const soldee = montantRestant <= 0 && facture.totalApreRemise > 0;
+    const showTVA = facture.afficherTVA !== false;
+    const showTVALignes = showTVA && facture.afficherTVALignes !== false;
     return `<!doctype html>
 <html lang="fr">
 <head>
@@ -377,6 +396,7 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined): 
             <div class="doc-dates">
                 Émise le ${esc(formatDate(facture.dateEmission))}<br/>
                 Échéance ${esc(formatDate(facture.dateEcheance))}
+                ${creatorName ? `<br/>Émise par ${esc(creatorName)}` : ''}
             </div>
             ${soldee ? '<div class="badge-soldee">SOLDÉE</div>' : ''}
         </div>
@@ -388,12 +408,12 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined): 
         </div>
     </div>
 
-    ${renderLignesTable(facture.lignes)}
+    ${renderLignesTable(facture.lignes, showTVALignes)}
 
     <div class="totals">
         <div class="totals-box">
             <div class="totals-row"><span>Total HT</span><span>${formatFCFA(facture.totalHT)}</span></div>
-            <div class="totals-row"><span>TVA</span><span>${formatFCFA(facture.totalTVA)}</span></div>
+            ${showTVA ? `<div class="totals-row"><span>TVA</span><span>${formatFCFA(facture.totalTVA)}</span></div>` : ''}
             <div class="totals-row"><span>Total TTC</span><span>${formatFCFA(facture.totalTTC)}</span></div>
             ${facture.remiseGlobale ? `
                 <div class="totals-row muted"><span>Remise globale (${facture.remiseGlobale}%)</span><span>- ${formatFCFA(remiseAmount)}</span></div>
@@ -412,7 +432,7 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined): 
         (${esc(formatFCFA(facture.totalApreRemise))}) toutes taxes comprises.
     </div>
 
-    ${renderPaiements(facture)}
+    ${renderPaiements(facture, adminLookup)}
 
     ${(facture.notes || COMPANY.notesFacture) || (facture.conditionsPaiement || COMPANY.conditionsPaiement) ? `
         <div class="footer">

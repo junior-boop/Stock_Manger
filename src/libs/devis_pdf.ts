@@ -1,5 +1,6 @@
 import { Client, Devis, LigneDocument } from '../Databases/db.d';
 import { formatDate, formatFCFA, numberToWordsFr } from './format';
+import type { AdminLookup } from './facture_pdf';
 
 type CustomField = {
     id: string;
@@ -75,7 +76,7 @@ function renderClientBlock(client: Client | undefined): string {
     `;
 }
 
-function renderLigneRow(l: LigneDocument): string {
+function renderLigneRow(l: LigneDocument, showTVA: boolean): string {
     return `
         <tr>
             <td>
@@ -85,13 +86,13 @@ function renderLigneRow(l: LigneDocument): string {
             <td class="center">${l.quantite} ${esc(l.unite)}</td>
             <td class="center">${formatFCFA(l.prixUnitaireHT)}</td>
             <td class="center">${l.remise ? l.remise + '%' : '—'}</td>
-            <td class="center">${l.tauxTVA}%</td>
+            ${showTVA ? `<td class="center">${l.tauxTVA}%</td>` : ''}
             <td class="right strong">${formatFCFA(l.montantTotalTTC)}</td>
         </tr>
     `;
 }
 
-function renderLignesTable(lignes: LigneDocument[]): string {
+function renderLignesTable(lignes: LigneDocument[], showTVA: boolean): string {
     const head = `
         <thead>
             <tr>
@@ -99,17 +100,17 @@ function renderLignesTable(lignes: LigneDocument[]): string {
                 <th class="center" style = "text-align: center;">Qté</th>
                 <th class="center" style = "text-align: center;">P.U. HT</th>
                 <th class="center" style = "text-align: center">Remise</th>
-                <th class="center" style = "text-align: center;">TVA</th>
+                ${showTVA ? `<th class="center" style = "text-align: center;">TVA</th>` : ''}
                 <th class="right" style = "text-align: right;">Total TTC</th>
             </tr>
         </thead>
     `;
-    return `<table class="lignes">${head}<tbody>${lignes.map(renderLigneRow).join('')}</tbody></table>`;
+    return `<table class="lignes">${head}<tbody>${lignes.map((l) => renderLigneRow(l, showTVA)).join('')}</tbody></table>`;
 }
 
-function renderGroupedLignes(devis: Devis): string {
+function renderGroupedLignes(devis: Devis, showTVA: boolean): string {
     const groupes = devis.groupes ?? [];
-    if (groupes.length === 0) return renderLignesTable(devis.lignes);
+    if (groupes.length === 0) return renderLignesTable(devis.lignes, showTVA);
 
     const assigned = new Set<string>();
     const blocks: string[] = [];
@@ -123,7 +124,7 @@ function renderGroupedLignes(devis: Devis): string {
             if (sgLignes.length === 0) continue;
             sousBlocks.push(`
                 <div class="sub-header">${esc(sg.nom)}</div>
-                ${renderLignesTable(sgLignes)}
+                ${renderLignesTable(sgLignes, showTVA)}
             `);
         }
         groupLignes.forEach((l) => assigned.add(l.id));
@@ -131,7 +132,7 @@ function renderGroupedLignes(devis: Devis): string {
         blocks.push(`
             <div class="group">
                 <div class="group-header">${esc(g.nom)}</div>
-                ${groupLignes.length ? renderLignesTable(groupLignes) : ''}
+                ${groupLignes.length ? renderLignesTable(groupLignes, showTVA) : ''}
                 ${sousBlocks.join('')}
             </div>
         `);
@@ -142,7 +143,7 @@ function renderGroupedLignes(devis: Devis): string {
         blocks.push(`
             <div class="group">
                 <div class="group-header">Autres</div>
-                ${renderLignesTable(orphans)}
+                ${renderLignesTable(orphans, showTVA)}
             </div>
         `);
     }
@@ -150,10 +151,13 @@ function renderGroupedLignes(devis: Devis): string {
     return blocks.join('');
 }
 
-export function buildDevisHTML(devis: Devis, client: Client | undefined): string {
+export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLookup?: AdminLookup): string {
     const remiseAmount = devis.totalTTC - devis.totalApreRemise;
+    const creatorName = adminLookup?.(devis.createdBy);
     const conditionsPaiement = devis.conditionsPaiement || COMPANY.conditionsPaiement;
     const notes = devis.notes || COMPANY.notesDevis;
+    const showTVA = devis.afficherTVA !== false;
+    const showTVALignes = showTVA && devis.afficherTVALignes !== false;
     return `<!doctype html>
 <html lang="fr">
 <head>
@@ -221,6 +225,7 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined): string
             <div class="devis-dates">
                 Émis le ${esc(formatDate(devis.dateEmission))}<br/>
                 Valide jusqu'au ${esc(formatDate(devis.dateValidite))}
+                ${creatorName ? `<br/>Émis par ${esc(creatorName)}` : ''}
             </div>
         </div>
     </div>
@@ -231,12 +236,12 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined): string
         </div>
     </div>
 
-    ${renderGroupedLignes(devis)}
+    ${renderGroupedLignes(devis, showTVALignes)}
 
     <div class="totals">
         <div class="totals-box">
             <div class="totals-row"><span>Total HT</span><span>${formatFCFA(devis.totalHT)}</span></div>
-            <div class="totals-row"><span>TVA</span><span>${formatFCFA(devis.totalTVA)}</span></div>
+            ${showTVA ? `<div class="totals-row"><span>TVA</span><span>${formatFCFA(devis.totalTVA)}</span></div>` : ''}
             <div class="totals-row"><span>Total TTC</span><span>${formatFCFA(devis.totalTTC)}</span></div>
             ${devis.remiseGlobale ? `
                 <div class="totals-row muted"><span>Remise globale (${devis.remiseGlobale}%)</span><span>- ${formatFCFA(remiseAmount)}</span></div>

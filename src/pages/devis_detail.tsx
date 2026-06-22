@@ -12,6 +12,7 @@ import DevisSendModal from '../components/devis_send_modal';
 import FactureAcompteModal, { AcompteResult } from '../components/facture_acompte_modal';
 import { buildDevisHTML } from '../libs/devis_pdf';
 import { FluentMoreHorizontal32Regular } from '../libs/icons';
+import Switch from '../components/switch';
 import { v4 as uuidv4 } from 'uuid';
 
 const STATUT_OPTIONS: StatutDevis[] = ['brouillon', 'envoyé', 'accepté', 'refusé', 'expiré', 'annulé'];
@@ -44,7 +45,7 @@ export default function DevisDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { devis, clients, articles, factures, createDevis, updateDevis, deleteDevis, createFacture } = useDatabase();
+    const { devis, clients, articles, factures, administrateurs, createDevis, updateDevis, deleteDevis, createFacture } = useDatabase();
     const { can } = usePermissions();
     const { user } = useAuth();
     const { confirm, success, error: notifyError } = useAlerts();
@@ -71,6 +72,8 @@ export default function DevisDetailPage() {
                 remiseGlobale: current.remiseGlobale ?? 0,
                 notes: current.notes ?? '',
                 conditionsPaiement: current.conditionsPaiement ?? '',
+                afficherTVA: current.afficherTVA !== false,
+                afficherTVALignes: current.afficherTVALignes !== false,
             });
             setEditing(false);
         }
@@ -99,7 +102,13 @@ export default function DevisDetailPage() {
         setPdfBusy(true);
         try {
             const client = clients.find((c) => c.id === current.clientId);
-            const html = buildDevisHTML(current, client);
+            const adminLookup = (id?: string | null): string | undefined => {
+                if (!id) return undefined;
+                const a = administrateurs.find((x) => x.id === id);
+                if (!a) return undefined;
+                return [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || undefined;
+            };
+            const html = buildDevisHTML(current, client, adminLookup);
             const filePath = await window.pdf.generateDevis(html, current.numero);
             await window.shell.openPath(filePath);
             success('PDF généré', current.numero);
@@ -126,6 +135,8 @@ export default function DevisDetailPage() {
             totalTTC: totaux.totalTTC,
             remiseGlobale: value.remiseGlobale,
             totalApreRemise: totaux.totalApreRemise,
+            afficherTVA: value.afficherTVA,
+            afficherTVALignes: value.afficherTVALignes,
             dateEmission: fromDateInput(value.dateEmission),
             dateValidite: fromDateInput(value.dateValidite),
             ...(notes ? { notes } : {}),
@@ -140,6 +151,20 @@ export default function DevisDetailPage() {
             const msg = err?.message ?? 'Erreur.';
             setError(msg);
             notifyError('Échec de l\'enregistrement', msg);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const toggleAfficherTVA = async () => {
+        const next = current.afficherTVA === false;
+        setSubmitting(true);
+        try {
+            await updateDevis(current.id, { afficherTVA: next });
+            setValue((v) => (v ? { ...v, afficherTVA: next } : v));
+            success('TVA', next ? 'TVA affichée' : 'TVA masquée');
+        } catch (err: any) {
+            notifyError('Échec', err?.message ?? 'Erreur.');
         } finally {
             setSubmitting(false);
         }
@@ -196,6 +221,8 @@ export default function DevisDetailPage() {
                 totalHT: current.totalHT,
                 totalTVA: current.totalTVA,
                 totalTTC: current.totalTTC,
+                afficherTVA: current.afficherTVA !== false,
+                afficherTVALignes: current.afficherTVALignes !== false,
                 remiseGlobale: current.remiseGlobale ?? 0,
                 totalApreRemise,
                 montantPayé,
@@ -244,6 +271,8 @@ export default function DevisDetailPage() {
                 totalHT: current.totalHT,
                 totalTVA: current.totalTVA,
                 totalTTC: current.totalTTC,
+                afficherTVA: current.afficherTVA !== false,
+                afficherTVALignes: current.afficherTVALignes !== false,
                 remiseGlobale: current.remiseGlobale ?? 0,
                 totalApreRemise,
                 statut: 'brouillon',
@@ -409,6 +438,18 @@ export default function DevisDetailPage() {
                                                 )}
                                             </div>
                                         )}
+                                        <div
+                                            onClick={() => { if (!submitting) toggleAfficherTVA(); }}
+                                            className={`w-full px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50 cursor-pointer ${submitting ? 'opacity-50 pointer-events-none' : ''}`}
+                                        >
+                                            <span>Afficher la TVA</span>
+                                            <Switch
+                                                checked={current.afficherTVA !== false}
+                                                onChange={() => toggleAfficherTVA()}
+                                                disabled={submitting}
+                                                aria-label="Afficher la TVA"
+                                            />
+                                        </div>
                                         {can('devis:delete') && (
                                             <>
                                                 <div className="my-1 h-px bg-slate-100" />
@@ -431,7 +472,7 @@ export default function DevisDetailPage() {
                 )}
             </div>
 
-            <div className="flex-1 flex flex-col overflow-y-auto px-6 py-6">
+            <div data-os-scroll className="flex-1 flex flex-col overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
                 <DevisForm
                     value={value}

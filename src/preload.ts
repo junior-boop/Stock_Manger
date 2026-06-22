@@ -78,6 +78,11 @@ const imagesApi = {
   getPath: () => ipcRenderer.invoke('images:getPath'),
   get: (filename: string) => ipcRenderer.invoke('images:get', filename),
   list: () => ipcRenderer.invoke('images:list'),
+  exists: (filename: string): Promise<boolean> => ipcRenderer.invoke('images:exists', filename),
+  saveBinary: (bytes: Uint8Array, filename: string): Promise<string> =>
+    ipcRenderer.invoke('images:saveBinary', bytes, filename),
+  readBinary: (filename: string): Promise<Uint8Array | null> =>
+    ipcRenderer.invoke('images:readBinary', filename),
 };
 
 // ======================== ARTICLES ========================
@@ -88,6 +93,7 @@ const articlesApi = {
   update: (id: string, data: any) => ipcRenderer.invoke('articles:update', id, data),
   delete: (id: string) => ipcRenderer.invoke('articles:delete', id),
   generateReference: (collectionId: string) => ipcRenderer.invoke('articles:generateReference', collectionId),
+  getHistory: (id: string) => ipcRenderer.invoke('articles:getHistory', id),
 };
 
 // ======================== AUTH ========================
@@ -117,6 +123,8 @@ const authApi = {
   }) => ipcRenderer.invoke('auth:createUser', data),
   updateUserPassword: (id: string, motDePasse: string) =>
     ipcRenderer.invoke('auth:updateUserPassword', id, motDePasse),
+  setupOnline: (email: string, motDePasse: string) =>
+    ipcRenderer.invoke('auth:setupOnline', email, motDePasse),
 };
 
 // ======================== TECHNICIENS ========================
@@ -147,6 +155,51 @@ const tachesProjetApi = {
   delete: (id: string) => ipcRenderer.invoke('taches-projet:delete', id),
 };
 
+// ======================== BOUTIQUES ========================
+const boutiquesApi = {
+  getById: (id: string) => ipcRenderer.invoke('boutiques:getById', id),
+  getAll: () => ipcRenderer.invoke('boutiques:getAll'),
+  getPrincipale: () => ipcRenderer.invoke('boutiques:getPrincipale'),
+  create: (data: any) => ipcRenderer.invoke('boutiques:create', data),
+  update: (id: string, data: any) => ipcRenderer.invoke('boutiques:update', id, data),
+  delete: (id: string) => ipcRenderer.invoke('boutiques:delete', id),
+};
+
+// ======================== STOCKS BOUTIQUE ========================
+const stocksBoutiqueApi = {
+  getEntry: (boutiqueId: string, articleId: string, varianteId?: string) =>
+    ipcRenderer.invoke('stocks-boutique:getEntry', boutiqueId, articleId, varianteId),
+  getByBoutique: (boutiqueId: string) => ipcRenderer.invoke('stocks-boutique:getByBoutique', boutiqueId),
+  getByArticle: (articleId: string) => ipcRenderer.invoke('stocks-boutique:getByArticle', articleId),
+  adjust: (boutiqueId: string, articleId: string, varianteId: string | undefined, delta: number) =>
+    ipcRenderer.invoke('stocks-boutique:adjust', boutiqueId, articleId, varianteId, delta),
+  recomputeArticleTotal: (articleId: string) =>
+    ipcRenderer.invoke('stocks-boutique:recomputeArticleTotal', articleId),
+};
+
+// ======================== TRANSFERTS STOCK ========================
+const transfertsStockApi = {
+  execute: (data: any) => ipcRenderer.invoke('transferts-stock:execute', data),
+  getAll: () => ipcRenderer.invoke('transferts-stock:getAll'),
+  getByBoutique: (boutiqueId: string) => ipcRenderer.invoke('transferts-stock:getByBoutique', boutiqueId),
+  adjustBatch: (entries: Array<{ boutiqueId: string; articleId: string; varianteId?: string; delta: number }>) =>
+    ipcRenderer.invoke('stocks-boutique:adjustBatch', entries),
+};
+
+// ======================== INVENTAIRES ========================
+const inventairesApi = {
+  getBrouillon: () => ipcRenderer.invoke('inventaires:getBrouillon'),
+  getById: (id: string) => ipcRenderer.invoke('inventaires:getById', id),
+  getAll: () => ipcRenderer.invoke('inventaires:getAll'),
+  create: (data: { boutiqueId?: string | null; exportPath?: string | null; createdBy: string }) =>
+    ipcRenderer.invoke('inventaires:create', data),
+  updateLignes: (id: string, lignes: Array<{ articleId: string; varianteId?: string | null; boutiqueId: string; quantiteCompte: number | null }>) =>
+    ipcRenderer.invoke('inventaires:updateLignes', id, lignes),
+  cancel: (id: string) => ipcRenderer.invoke('inventaires:cancel', id),
+  validate: (id: string) => ipcRenderer.invoke('inventaires:validate', id),
+  exportCurrentBackup: () => ipcRenderer.invoke('inventaires:exportCurrentBackup'),
+};
+
 // ======================== EXPOSE APIs VIA CONTEXT BRIDGE ========================
 contextBridge.exposeInMainWorld('db', {
   articles: articlesApi,
@@ -161,6 +214,10 @@ contextBridge.exposeInMainWorld('db', {
   techniciens: techniciensApi,
   projets: projetsApi,
   tachesProjet: tachesProjetApi,
+  boutiques: boutiquesApi,
+  stocksBoutique: stocksBoutiqueApi,
+  transfertsStock: transfertsStockApi,
+  inventaires: inventairesApi,
 });
 
 contextBridge.exposeInMainWorld('auth', authApi);
@@ -203,6 +260,7 @@ type CompanyInfo = {
   numeroFormat: string;
   tvaDefault: number;
   devise: string;
+  afficherTVA: boolean;
 };
 const companyApi = {
   get: (): Promise<CompanyInfo> => ipcRenderer.invoke('company:get'),
@@ -230,6 +288,48 @@ const syncApi = {
   initServer: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
     ipcRenderer.invoke('sync:initServer'),
   markLastSync: (): Promise<SyncConfig> => ipcRenderer.invoke('sync:markLastSync'),
+  linkDevice: (serverUrl: string, email: string, motDePasse: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('sync:linkDevice', serverUrl, email, motDePasse),
+  // Phase 4 — accès au miroir local sync_state + dispatcher pull-driven.
+  applyRemote: (entry: {
+    table: string;
+    id: string;
+    version: number;
+    deleted?: boolean;
+    data?: Record<string, unknown> | null;
+  }): Promise<boolean> => ipcRenderer.invoke('sync:applyRemote', entry),
+  syncState: {
+    maxVersion: (): Promise<number> => ipcRenderer.invoke('sync:syncStateMaxVersion'),
+    isEmpty: (): Promise<boolean> => ipcRenderer.invoke('sync:syncStateIsEmpty'),
+    getDirty: (): Promise<Array<{
+      table_name: string;
+      element_id: string;
+      version: number;
+      localVersion: number;
+      dirty: number;
+      deleted: number;
+      lastPulledAt: string | null;
+      lastPushedAt: string | null;
+    }>> => ipcRenderer.invoke('sync:syncStateGetDirty'),
+    get: (table: string, id: string): Promise<any | null> =>
+      ipcRenderer.invoke('sync:syncStateGet', table, id),
+    markClean: (table: string, id: string, version: number): Promise<boolean> =>
+      ipcRenderer.invoke('sync:syncStateMarkClean', table, id, version),
+  },
+  syncableTables: (): Promise<string[]> => ipcRenderer.invoke('sync:syncableTables'),
+  // Broadcast émis par le main après chaque applyRemoteEntry réussi. Le
+  // renderer s'y abonne via un provider React qui bumpe un revision counter
+  // → les pages qui mettent cette valeur dans leurs deps re-fetchent.
+  onRemoteChange: (
+    cb: (payload: { table: string; id: string; deleted: boolean }) => void,
+  ): (() => void) => {
+    const listener = (
+      _event: unknown,
+      payload: { table: string; id: string; deleted: boolean },
+    ) => cb(payload);
+    ipcRenderer.on('sync:remote-change', listener);
+    return () => ipcRenderer.removeListener('sync:remote-change', listener);
+  },
 };
 contextBridge.exposeInMainWorld('syncApi', syncApi);
 

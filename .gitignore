@@ -98,3 +98,7 @@ out/
 # tous les fichiers excel
 *.xlsx
 *.xls
+# Local databases
+*.sqlite
+*.sqlite-journal
+*.db

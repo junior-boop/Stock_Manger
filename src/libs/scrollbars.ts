@@ -1,7 +1,6 @@
 import { OverlayScrollbars } from 'overlayscrollbars';
 
-const SELECTOR =
-    '.overflow-y-auto, .overflow-x-auto, .overflow-auto, .overflow-y-scroll, .overflow-x-scroll, .overflow-scroll';
+const SELECTOR = '[data-os-scroll]';
 
 const initialized = new WeakSet<Element>();
 

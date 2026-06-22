@@ -60,7 +60,7 @@ export default function ProjetNewPage() {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-y-auto">
+        <div data-os-scroll className="flex-1 flex flex-col h-full overflow-y-auto">
             <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between">
                 <h1 className="text-2xl font-semibold">Nouveau projet</h1>
             </div>
