@@ -20,6 +20,8 @@ import type {
     SensTransfert,
     Inventaire,
     LigneInventaire,
+    Entreprise,
+    CustomField,
 } from "./db"
 
 import { v4 as uuidv4 } from "uuid";
@@ -456,10 +458,10 @@ export async function getAllAdministrateurs() {
   }
 }
 
-export function createAdministrateur(data: Omit<Administrateur, "id" | "createdAt" | "updatedAt">, opts?: { fromSync?: boolean }) {
+export async function createAdministrateur(data: Omit<Administrateur, "id" | "createdAt" | "updatedAt">, opts?: { fromSync?: boolean }) {
   try {
     const id = uuidv4();
-    const result = Administrateurs.create({
+    const result = await Administrateurs.create({
       id,
       nom: data.nom,
       prenom: data.prenom,
@@ -1578,6 +1580,100 @@ export function validateInventaire(id: string): { ok: boolean; appliedCount: num
   } catch (e) { console.error(e); return null; }
 }
 
+// ======================== ENTREPRISE ========================
+
+const Entreprises = db.createModel<Entreprise>("entreprises", {
+  id: "TEXT PRIMARY KEY NOT NULL",
+  matricule: "TEXT NOT NULL DEFAULT ''",
+  nom: "TEXT NOT NULL DEFAULT ''",
+  adresse: "TEXT NOT NULL DEFAULT ''",
+  telephone: "TEXT NOT NULL DEFAULT ''",
+  email: "TEXT NOT NULL DEFAULT ''",
+  logoDataUrl: "TEXT NOT NULL DEFAULT ''",
+  notesDevis: "TEXT NOT NULL DEFAULT ''",
+  notesFacture: "TEXT NOT NULL DEFAULT ''",
+  conditionsPaiement: "TEXT NOT NULL DEFAULT ''",
+  setupDone: "INTEGER NOT NULL DEFAULT 0",
+  customFields: "TEXT NOT NULL DEFAULT '[]'",
+  devisPrefix: "TEXT NOT NULL DEFAULT 'DEV'",
+  facturePrefix: "TEXT NOT NULL DEFAULT 'FAC'",
+  numeroFormat: "TEXT NOT NULL DEFAULT 'PREFIX-YYYY-NNNN'",
+  tvaDefault: "REAL NOT NULL DEFAULT 19.25",
+  devise: "TEXT NOT NULL DEFAULT 'FCFA'",
+  afficherTVA: "INTEGER NOT NULL DEFAULT 1",
+});
+
+const createEntrepriseTable = async () => {
+  await Entreprises.createTable();
+  const existing = Entreprises.findById('default');
+  if (!existing) {
+    Entreprises.create({
+      id: 'default',
+      matricule: '',
+      nom: '',
+      adresse: '',
+      telephone: '',
+      email: '',
+      logoDataUrl: '',
+      notesDevis: '',
+      notesFacture: '',
+      conditionsPaiement: '',
+      setupDone: 0,
+      customFields: '[]',
+      devisPrefix: 'DEV',
+      facturePrefix: 'FAC',
+      numeroFormat: 'PREFIX-YYYY-NNNN',
+      tvaDefault: 19.25,
+      devise: 'FCFA',
+      afficherTVA: 1,
+    } as any);
+  }
+};
+
+function parseEntreprise(row: any): Entreprise | null {
+  if (!row) return null;
+  return {
+    ...row,
+    setupDone: row.setupDone === 1 || row.setupDone === true,
+    afficherTVA: row.afficherTVA === 1 || row.afficherTVA === true,
+    customFields: typeof row.customFields === 'string'
+      ? JSON.parse(row.customFields || '[]')
+      : (row.customFields ?? []),
+  };
+}
+
+export function getEntreprise(): Entreprise | null {
+  try {
+    const row = Entreprises.findById('default');
+    return parseEntreprise(row);
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+export function updateEntreprise(data: Partial<Omit<Entreprise, 'id'>>): Entreprise | null {
+  try {
+    const updateData: any = { ...data };
+    if (data.customFields !== undefined) {
+      updateData.customFields = JSON.stringify(data.customFields);
+    }
+    if (data.setupDone !== undefined) {
+      updateData.setupDone = data.setupDone ? 1 : 0;
+    }
+    if (data.afficherTVA !== undefined) {
+      updateData.afficherTVA = data.afficherTVA ? 1 : 0;
+    }
+    Entreprises.update('default', updateData);
+    syncState.markDirty('entreprises', 'default');
+    return getEntreprise();
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+
 // ======================== HISTORIQUE ARTICLE ========================
 
 export type ArticleHistoryEvent =
@@ -1920,6 +2016,7 @@ const SYNC_MODEL_MAP = {
   boutiques: Boutiques,
   stocks_boutique: StocksBoutique,
   transferts_stock: TransfertsStock,
+  entreprises: Entreprises,
 } as const;
 
 type SyncTableName = keyof typeof SYNC_MODEL_MAP;
@@ -1985,6 +2082,7 @@ export const SYNCABLE_TABLES: SyncTableName[] = [
   "boutiques",
   "stocks_boutique",
   "transferts_stock",
+  "entreprises",
 ];
 
 // ======================== PHASE 5.1 — Seed local sync_state ========================
@@ -2049,6 +2147,7 @@ export async function initializeTables() {
     await createStocksBoutiqueTable();
     await createTransfertsStockTable();
     await createInventairesTable();
+    await createEntrepriseTable();
     runMigrations(orm);
     seedAndMigrateStockPrincipal();
     seedLocalSyncStateIfNeeded();
@@ -2071,4 +2170,5 @@ export {
     createStocksBoutiqueTable,
     createTransfertsStockTable,
     createInventairesTable,
+    createEntrepriseTable,
 }

@@ -116,13 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setError(res.error ?? 'Échec de connexion');
             return false;
         }
-        const role = res.user?.role ?? null;
-        try {
-            await syncClient.start();
-            await syncClient.bootstrapIfEmpty(role);
-        } catch {
-            /* échec sync non bloquant : la session peut s'ouvrir hors-ligne */
-        }
         setUser(res.user ?? null);
         setIsSetupDone(true);
         return true;
@@ -136,11 +129,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return false;
         }
         setUser(res.user ?? null);
-        const role = res.user?.role ?? null;
-        void syncClient
-            .start()
-            .then(() => syncClient.bootstrapIfEmpty(role))
-            .catch(() => undefined);
         return true;
     }, []);
 
@@ -151,13 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (user) {
-            const role = user.role;
-            void syncClient
-                .start()
-                .then(() => syncClient.bootstrapIfEmpty(role))
-                .catch(() => undefined);
-        } else {
+        if (!user) {
             syncClient.stop();
         }
     }, [user]);

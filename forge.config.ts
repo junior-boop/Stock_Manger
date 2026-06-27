@@ -8,15 +8,27 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
+  
   packagerConfig: {
     asar: true,
+    name: 'Kataleya - Plateforme',
+    executableName: 'kataleya-plateforme',
+    icon: 'src/assets/app-icon',
+    ignore : [
+      /node_modules\/(?!(better-sqlite3|bindings|file-uri-to-path)\/)/,
+    ]
   },
-  rebuildConfig: {},
+ rebuildConfig: {
+    force: false,
+  },
   makers: [
-    new MakerSquirrel({}),
-    new MakerZIP({}, ['darwin']),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    new MakerSquirrel({
+      name: 'kataleya-plateforme',
+      setupIcon: 'src/assets/app-icon.ico',
+    }),
+    new MakerZIP({}, ['darwin', 'win32']),
+    new MakerRpm({ options: { icon: 'src/assets/app-icon.png' } }),
+    new MakerDeb({ options: { icon: 'src/assets/app-icon.png' } }),
   ],
   plugins: [
     new VitePlugin({

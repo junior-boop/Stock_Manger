@@ -26,6 +26,8 @@ import HomePage from '../pages/home';
 import BoutiquesPage from '../pages/boutiques';
 import StockTransfertsPage from '../pages/stock_transferts';
 import InventairePage from '../pages/inventaire';
+import SyncProgressPage from '../pages/sync_progress';
+import { syncClient } from '../context/sync_client';
 import { AuthProvider, useAuth } from '../auth/authProvider';
 import TitleBar from '../components/titlebar';
 import ImportExcelModal from '../components/import_excel_modal';
@@ -42,11 +44,13 @@ const Router = () => {
     const { user, isSetupDone, isLoading } = useAuth();
     const [companyCheck, setCompanyCheck] = useState<'pending' | 'needed' | 'done'>('pending');
     const [inventaireBrouillon, setInventaireBrouillon] = useState<any | null | 'pending'>('pending');
+    const [syncProgress, setSyncProgress] = useState<'checking' | 'needed' | 'done'>('checking');
 
     useEffect(() => {
         if (!user) {
             setCompanyCheck('pending');
             setInventaireBrouillon('pending');
+            setSyncProgress('checking');
             return;
         }
         window.companyApi.get()
@@ -56,6 +60,44 @@ const Router = () => {
             .then((inv: any) => setInventaireBrouillon(inv ?? null))
             .catch(() => setInventaireBrouillon(null));
     }, [user]);
+
+    useEffect(() => {
+        if (!user) {
+            setSyncProgress('checking');
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            const cfg = await window.syncApi.getConfig().catch(() => null);
+            if (!cfg?.enabled || !cfg?.serverUrl || !cfg?.token) {
+                if (!cancelled) setSyncProgress('done');
+                return;
+            }
+            if (syncClient.initialSyncDone) {
+                if (!cancelled) setSyncProgress('done');
+                return;
+            }
+            const status = syncClient.getStatus();
+            if (status.phase === 'bootstrap' || status.running || status.phase !== 'idle') {
+                if (!cancelled) setSyncProgress('needed');
+                return;
+            }
+            const empty = await window.syncApi.syncState.isEmpty().catch(() => false);
+            if (!cancelled) setSyncProgress(empty ? 'needed' : 'done');
+        })();
+        return () => { cancelled = true; };
+    }, [user]);
+
+    useEffect(() => {
+        if (!user || syncProgress !== 'done') return;
+        window.companyApi.get()
+            .then((info) => setCompanyCheck(info.setupDone ? 'done' : 'needed'))
+            .catch(() => setCompanyCheck('done'));
+        window.db.inventaires.getBrouillon()
+            .then((inv: any) => setInventaireBrouillon(inv ?? null))
+            .catch(() => setInventaireBrouillon(null));
+    }, [user, syncProgress]);
 
     if (isLoading || isSetupDone === null) {
         return (
@@ -73,10 +115,10 @@ const Router = () => {
     }
 
     if (!user) {
-        return <LoginPage />;
+        return <LoginPage onDone={() => { console.log('je suis dans la place'); setSyncProgress('needed') }} />;
     }
 
-    if (companyCheck === 'pending') {
+    if (syncProgress === 'checking' || companyCheck === 'pending' || inventaireBrouillon === 'pending') {
         return (
             <div className="flex items-center justify-center h-dvh bg-gray-50">
                 <SvgSpinners180RingWithBg className="h-12 w-12 text-blue-600" />
@@ -84,17 +126,13 @@ const Router = () => {
         );
     }
 
-    if (companyCheck === 'needed') {
-        return <CompanySetupPage onDone={() => setCompanyCheck('done')} />;
+    if (syncProgress === 'needed') {
+        return <SyncProgressPage onDone={() => setSyncProgress('done')} />;
     }
 
-    if (inventaireBrouillon === 'pending') {
-        return (
-            <div className="flex items-center justify-center h-dvh bg-gray-50">
-                <SvgSpinners180RingWithBg className="h-12 w-12 text-blue-600" />
-            </div>
-        );
-    }
+    // if (companyCheck === 'needed') {
+    //     return <CompanySetupPage onDone={() => setCompanyCheck('done')} />;
+    // }
 
     if (inventaireBrouillon) {
         return <InventairePage inventaire={inventaireBrouillon} onDone={() => setInventaireBrouillon(null)} />;

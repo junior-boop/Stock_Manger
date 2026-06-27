@@ -38,15 +38,22 @@ export function setFactureCompanyInfo(info: Partial<CompanyPdfInfo>) {
     COMPANY = { ...COMPANY, ...info };
 }
 
+const escIt = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function renderCustomFields(): string {
     if (!COMPANY.customFields?.length) return '';
-    const escIt = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     return COMPANY.customFields
         .filter((f) => f.value?.trim())
         .map((f) => {
             const lbl = f.label?.trim() ? `${escIt(f.label)} : ` : '';
             return `<div>${lbl}${escIt(f.value)}</div>`;
         })
+        .join('');
+}
+function renderCustomFieldValues(): string {
+    if (!COMPANY.customFields?.length) return '';
+    return COMPANY.customFields
+        .filter((f) => f.value?.trim())
+        .map((f) => `<div>${escIt(f.value)}</div>`)
         .join('');
 }
 
@@ -191,8 +198,9 @@ export function buildRecuPaiementHTML(
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(numeroRecu)}</title>
+<title>${esc(COMPANY.nom)} — ${esc(numeroRecu)}${COMPANY.telephone ? ` — ${esc(COMPANY.telephone)}` : ''}</title>
 <style>
+    @page { margin: 15mm 15mm 5mm 15mm; }
     * { box-sizing: border-box; }
     body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -331,17 +339,28 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(facture.numero)}</title>
+<title>${esc(COMPANY.nom)} — ${esc(facture.numero)}${COMPANY.telephone ? ` — ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` — ${esc(COMPANY.email)}` : ''}</title>
 <style>
+    @page { margin: 15mm 15mm 5mm 15mm; }
     * { box-sizing: border-box; }
     body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #0f172a;
         font-size: 11px;
         margin: 0;
-        padding: 24px 28px;
+        padding: 24px 28px 30mm 28px;
         line-height: 1.45;
     }
+    .fixed-footer {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: #fff; border-top: 1px solid #e2e8f0;
+        padding: 6px 28px;
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 8px; color: #64748b;
+        z-index: 100;
+    }
+    .fixed-footer .fi-left { display: flex; align-items: center; gap: 8px; }
+    .fixed-footer .fi-name { font-weight: 600; color: #0f172a; font-size: 9px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 2px solid #0f172a; }
     .company-name { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
     .company-info { color: #475569; font-size: 10px; line-height: 1.5; margin-top: 4px; }
@@ -434,7 +453,7 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
 
     ${renderPaiements(facture, adminLookup)}
 
-    ${(facture.notes || COMPANY.notesFacture) || (facture.conditionsPaiement || COMPANY.conditionsPaiement) ? `
+    ${(facture.notes || COMPANY.notesFacture) || (facture.conditionsPaiement || COMPANY.conditionsPaiement) || renderCustomFieldValues() ? `
         <div class="footer">
             ${(facture.conditionsPaiement || COMPANY.conditionsPaiement) ? `
                 <div class="footer-section">
@@ -448,8 +467,23 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
                     <div>${esc(facture.notes || COMPANY.notesFacture)}</div>
                 </div>
             ` : ''}
+            ${renderCustomFieldValues() ? `
+                <div class="footer-section">
+                    <div class="label">Informations complémentaires</div>
+                    ${renderCustomFieldValues()}
+                </div>
+            ` : ''}
         </div>
     ` : ''}
+    <div class="fixed-footer">
+        <div class="fi-left">
+            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:24px;max-width:70px;object-fit:contain;" />` : ''}
+            <div>
+                <div class="fi-name">${esc(COMPANY.nom)}</div>
+                <div>${esc(COMPANY.adresse)}${COMPANY.telephone ? ` · ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` · ${esc(COMPANY.email)}` : ''}</div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>`;
 }

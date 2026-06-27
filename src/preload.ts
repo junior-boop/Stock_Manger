@@ -200,6 +200,12 @@ const inventairesApi = {
   exportCurrentBackup: () => ipcRenderer.invoke('inventaires:exportCurrentBackup'),
 };
 
+// ======================== ENTREPRISES ========================
+const entreprisesApi = {
+  getById: (id: string) => ipcRenderer.invoke('entreprises:getById', id),
+  getAll: () => ipcRenderer.invoke('entreprises:getAll'),
+};
+
 // ======================== EXPOSE APIs VIA CONTEXT BRIDGE ========================
 contextBridge.exposeInMainWorld('db', {
   articles: articlesApi,
@@ -218,6 +224,7 @@ contextBridge.exposeInMainWorld('db', {
   stocksBoutique: stocksBoutiqueApi,
   transfertsStock: transfertsStockApi,
   inventaires: inventairesApi,
+  entreprises: entreprisesApi,
 });
 
 contextBridge.exposeInMainWorld('auth', authApi);
@@ -245,6 +252,7 @@ type CustomField = {
   value: string;
 };
 type CompanyInfo = {
+  matricule: string;
   nom: string;
   adresse: string;
   telephone: string;

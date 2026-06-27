@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/authProvider';
-import { syncClient, type SyncStatus } from '../context/sync_client';
 import logo from '../assets/Kataleya.png';
 
 type Mode = 'choose' | 'solo' | 'link-server' | 'online-login';
@@ -251,20 +250,6 @@ function OnlineLogin({
     const [email, setEmail] = useState('');
     const [motDePasse, setMotDePasse] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncClient.getStatus());
-
-    useEffect(() => syncClient.subscribe(setSyncStatus), []);
-
-    const restoring = submitting && (syncStatus.pulling || syncStatus.pushing || syncStatus.running);
-    const label = restoring
-        ? syncStatus.pulling
-            ? 'Restauration des données…'
-            : syncStatus.pushing
-                ? 'Envoi des données locales…'
-                : 'Synchronisation…'
-        : submitting
-            ? 'Connexion…'
-            : 'Se connecter';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -295,7 +280,7 @@ function OnlineLogin({
                         Retour
                     </button>
                     <button type="submit" disabled={submitting} className="flex-1 h-12 bg-slate-800 text-white rounded-full font-medium disabled:opacity-50">
-                        {label}
+                        {submitting ? 'Connexion…' : 'Se connecter'}
                     </button>
                 </div>
             </form>

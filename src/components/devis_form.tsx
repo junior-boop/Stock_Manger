@@ -668,7 +668,7 @@ function ArticlePicker({
                             onChange={(e) => setQuery(e.target.value)}
                             className="w-full h-9 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
                         />
-                        <div data-os-scroll className="mt-2 max-h-72 overflow-y-auto">
+                        <div className="mt-2 max-h-72 overflow-y-auto">
                             {filtered.length === 0 ? (
                                 <div className="text-sm text-gray-400 text-center py-6">Aucun article.</div>
                             ) : (
@@ -761,7 +761,7 @@ function ClientPicker({
                 className="mt-1 w-full h-10 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
             />
             {open && !disabled && (
-                <div data-os-scroll className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg p-2 z-50 max-h-72 overflow-y-auto">
+                <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg p-2 z-50 max-h-72 overflow-y-auto">
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-4">Aucun client trouvé.</div>
                     ) : filtered.map((c) => (

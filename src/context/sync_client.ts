@@ -27,7 +27,10 @@ export type SyncableTable =
     | "taches_projet"
     | "boutiques"
     | "stocks_boutique"
-    | "transferts_stock";
+    | "transferts_stock"
+    | "entreprises";
+
+export type SyncPhase = 'idle' | 'pull' | 'push' | 'bootstrap' | 'images';
 
 export type SyncStatus = {
     online: boolean;
@@ -38,6 +41,12 @@ export type SyncStatus = {
     pending: number;
     lastSyncAt: string | null;
     lastError: string | null;
+    authError: boolean;
+    phase: SyncPhase;
+    currentTable: string;
+    currentOperation: string;
+    progress: number;
+    total: number;
 };
 
 const IMAGE_QUEUE_KEY = "kataleya:sync:imageQueue";
@@ -79,6 +88,7 @@ const TABLE_TO_DB: Record<SyncableTable, keyof Window["db"]> = {
     boutiques: "boutiques",
     stocks_boutique: "stocksBoutique",
     transferts_stock: "transfertsStock",
+    entreprises: "entreprises",
 };
 
 // Champs stockés en JSON string côté D1 (colonnes TEXT) mais manipulés comme
@@ -117,6 +127,11 @@ export class SyncClient {
     private lastServerMaxVersion = 0;
     // Garde-fou : on ne logge la validation qu'une seule fois par session.
     private bootstrapValidated = false;
+    /** true dès que le bootstrap initial est terminé ou non-nécessaire (données déjà présentes) */
+    private _initialSyncDone = false;
+    get initialSyncDone(): boolean {
+        return this._initialSyncDone;
+    }
     private status: SyncStatus = {
         online: typeof navigator !== "undefined" ? navigator.onLine : true,
         enabled: false,
@@ -126,6 +141,12 @@ export class SyncClient {
         pending: 0,
         lastSyncAt: null,
         lastError: null,
+        authError: false,
+        phase: 'idle',
+        currentTable: '',
+        currentOperation: '',
+        progress: 0,
+        total: 0,
     };
     private listeners = new Set<(s: SyncStatus) => void>();
 
@@ -178,6 +199,7 @@ export class SyncClient {
             return;
         }
         this.status.enabled = true;
+        this.status.authError = false;
         this.emit();
         await this.synchronize();
         this.openSSE();
@@ -204,6 +226,15 @@ export class SyncClient {
         }
     }
 
+    private setPhase(phase: SyncPhase, currentOperation = '', currentTable = '', progress = 0, total = 0) {
+        this.status.phase = phase;
+        this.status.currentOperation = currentOperation;
+        this.status.currentTable = currentTable;
+        this.status.progress = progress;
+        this.status.total = total;
+        this.emit();
+    }
+
     async synchronize() {
         if (this.status.running || !this.status.online || !this.status.enabled) {
             console.info(`${TAG} synchronize() skip`, {
@@ -216,23 +247,29 @@ export class SyncClient {
         console.info(`${TAG} synchronize() start`);
         this.status.running = true;
         this.status.lastError = null;
-        this.emit();
+        this.setPhase('idle', 'Synchronisation…', '', 0, 0);
         try {
             this.status.pulling = true;
+            this.setPhase('pull', 'Récupération des données serveur…', '', 0, 0);
             this.emit();
             await this.pullRemoteChanges();
             this.status.pulling = false;
+            this.setPhase('idle', '', '', 0, 0);
             this.emit();
 
             this.status.pushing = true;
+            this.setPhase('push', 'Mise à jour du serveur…', '', 0, 0);
             this.emit();
             await this.pushDirty();
             this.status.pushing = false;
+            this.setPhase('idle', '', '', 0, 0);
             this.emit();
 
             // Transfert binaire (R2) — séparé de la queue principale, ne bloque
             // pas le marquage lastSyncAt si une image échoue.
+            this.setPhase('images', 'Synchronisation des images…', '', 0, 0);
             await this.processImageQueue();
+            this.setPhase('idle', '', '', 0, 0);
 
             const wasFirstSync = this.status.lastSyncAt === null;
             const cfg = await window.syncApi.markLastSync();
@@ -248,7 +285,7 @@ export class SyncClient {
             this.status.pulling = false;
             this.status.pushing = false;
             this.status.running = false;
-            this.emit();
+            this.setPhase('idle', '', '', 0, 0);
         }
     }
 
@@ -339,18 +376,35 @@ export class SyncClient {
         const empty = await window.syncApi.syncState.isEmpty();
         if (!empty) {
             console.info(`${TAG} miroir local non vide → pas de bootstrap`);
+            this._initialSyncDone = true;
             return;
         }
 
         const tables = await window.syncApi.syncableTables();
         console.info(`${TAG} démarrage bootstrap — ${tables.length} tables`);
+        this.status.running = true;
+        this.setPhase('bootstrap', 'Récupération initiale des données…', '', 0, tables.length);
 
         let totalApplied = 0;
         let totalFailed = 0;
-        for (const table of tables) {
+        for (let t = 0; t < tables.length; t++) {
+            const table = tables[t];
+            const tableLabel = table.replace(/_/g, ' ');
+            this.setPhase('bootstrap', `Récupération ${tableLabel}…`, table, t + 1, tables.length);
+
+            // Étape 1 : puller TOUTES les pages du serveur en mémoire d'abord
+            const allItems: Array<{
+                id: string;
+                version: number;
+                updatedAt: string;
+                updatedBy: string;
+                deleted: boolean;
+                data: Record<string, unknown> | null;
+            }> = [];
             let since = 0;
             let iter = 0;
             const MAX_ITER = 50;
+            let pullFailed = false;
             while (iter++ < MAX_ITER) {
                 const res = await this.authedFetch(
                     `/sync-state/full?table=${encodeURIComponent(table)}&since=${since}&limit=500`,
@@ -358,6 +412,7 @@ export class SyncClient {
                 );
                 if (!res.ok) {
                     console.error(`${TAG} GET /sync-state/full ${table} HTTP ${res.status}`);
+                    pullFailed = true;
                     break;
                 }
                 const data = (await res.json()) as {
@@ -375,55 +430,89 @@ export class SyncClient {
                     serverTime: string;
                 };
                 if (data.items.length === 0) break;
-
                 for (const item of data.items) {
-                    const row = item.data
-                        ? parseJsonFields(table as SyncableTable, item.data)
-                        : null;
-                    try {
-                        const ok = await window.syncApi.applyRemote({
-                            table,
-                            id: item.id,
-                            version: item.version,
-                            deleted: item.deleted,
-                            data: row,
-                        });
-                        if (ok) totalApplied++;
-                        else totalFailed++;
-                        if (item.version > since) since = item.version;
-                        if (ok && table === "articles" && !item.deleted && row) {
-                            const raw = (row as any)?.images;
-                            let arr: string[] = [];
-                            try {
-                                arr = typeof raw === "string" ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
-                            } catch { arr = []; }
-                            for (const f of arr) {
-                                const name = imageBasename(f);
-                                if (name) this.enqueueImage("download", name);
-                            }
-                        }
-                    } catch (e) {
-                        totalFailed++;
-                        console.warn(`${TAG} apply ${table}/${item.id} échec`, e);
-                    }
+                    allItems.push({
+                        ...item,
+                        data: item.data ? parseJsonFields(table as SyncableTable, item.data) : null,
+                    });
                 }
+                since = data.maxVersion;
                 console.info(
                     `${TAG} ${table} → ${data.items.length} row(s), since→${since}, hasMore=${data.hasMore}`,
                 );
                 if (!data.hasMore) break;
+            }
+            if (iter >= MAX_ITER) {
+                console.warn(`${TAG} ${table} — atteint MAX_ITER, pull potentiellement incomplet`);
+            }
+
+            // Étape 2 : si le pull a réussi, alors seulement on nettoie les
+            // données locales seedées et on applique le snapshot serveur.
+            // Si le pull a échoué, on conserve les données locales intactes.
+            if (pullFailed) {
+                console.warn(`${TAG} bootstrap pull ${table} échoué — données locales conservées`);
+                continue;
+            }
+
+            try {
+                const dbKey = (TABLE_TO_DB as Record<string, string>)[table];
+                const dbApi = (window.db as any)?.[dbKey];
+                if (dbApi?.getAll && dbApi?.delete) {
+                    const localRows: any[] = await dbApi.getAll();
+                    for (const row of localRows) {
+                        await dbApi.delete(row.id);
+                    }
+                }
+            } catch (e) {
+                console.warn(`${TAG} clear ${table} échec`, e);
+            }
+
+            for (const item of allItems) {
+                try {
+                    const ok = await window.syncApi.applyRemote({
+                        table,
+                        id: item.id,
+                        version: item.version,
+                        deleted: item.deleted,
+                        data: item.data,
+                    });
+                    if (ok) totalApplied++;
+                    else totalFailed++;
+                    if (ok && table === "articles" && !item.deleted && item.data) {
+                        const raw = (item.data as any)?.images;
+                        let arr: string[] = [];
+                        try {
+                            arr = typeof raw === "string" ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
+                        } catch { arr = []; }
+                        for (const f of arr) {
+                            const name = imageBasename(f);
+                            if (name) this.enqueueImage("download", name);
+                        }
+                    }
+                } catch (e) {
+                    totalFailed++;
+                    console.warn(`${TAG} apply ${table}/${item.id} échec`, e);
+                }
             }
         }
         console.info(`${TAG} bootstrap terminé`, {
             applied: totalApplied,
             failed: totalFailed,
         });
+        this.status.running = false;
+        this.setPhase('images', 'Synchronisation des images…', '', 0, 0);
         await this.processImageQueue().catch((e) =>
             console.warn(`${TAG} processImageQueue post-bootstrap échec`, e),
         );
+        this.setPhase('idle', '', '', 0, 0);
+        this._initialSyncDone = true;
     }
 
     private async authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
         const cfg = await window.syncApi.getConfig();
+        if (!cfg.token) {
+            throw new Error("token vide");
+        }
         const url = `${cfg.serverUrl.replace(/\/$/, "")}${path}`;
         const headers: Record<string, string> = {
             "Content-Type": "application/json",
@@ -431,7 +520,16 @@ export class SyncClient {
             "X-Client-ID": cfg.clientId,
             ...(init.headers as Record<string, string> | undefined),
         };
-        return fetch(url, { ...init, headers });
+        const res = await fetch(url, { ...init, headers });
+        if (res.status === 401) {
+            this.status.lastError = "Token expiré — veuillez vous reconnecter";
+            this.status.authError = true;
+            this.status.enabled = false;
+            this.emit();
+            this.stop();
+            throw new Error("token invalide");
+        }
+        return res;
     }
 
     // ─── Image queue ────────────────────────────────────────────────
@@ -599,7 +697,11 @@ export class SyncClient {
             }
             if (data.items.length === 0) break;
 
-            for (const entry of data.items) {
+            const total = data.items.length;
+            for (let i = 0; i < total; i++) {
+                const entry = data.items[i];
+                const tableLabel = entry.table.replace(/_/g, ' ');
+                this.setPhase('pull', `Récupération ${tableLabel}…`, entry.table, pulled + failed + 1, total);
                 try {
                     await this.applyRemoteInventoryEntry(entry);
                     pulled++;
@@ -688,7 +790,11 @@ export class SyncClient {
         let pushed = 0;
         let conflicts = 0;
         let failed = 0;
-        for (const row of dirty) {
+        const total = dirty.length;
+        for (let i = 0; i < total; i++) {
+            const row = dirty[i];
+            const tableLabel = row.table_name.replace(/_/g, ' ');
+            this.setPhase('push', `Envoi ${tableLabel}…`, row.table_name, i + 1, total);
             try {
                 const outcome = await this.pushSingleDirty(row);
                 if (outcome === "client") pushed++;

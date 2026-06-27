@@ -39,7 +39,7 @@ export default function ClientFormModal({ client, initialName, onClose, onSaved 
 
         if (type === 'particulier' && !nom.trim()) return setError('Le nom est obligatoire.');
         if (type === 'entreprise' && !raisonSociale.trim() && !nom.trim()) return setError('La raison sociale est obligatoire.');
-        if (!email.trim()) return setError('L\'email est obligatoire.');
+        // if (!email.trim()) return setError('L\'email est obligatoire.');
         if (!telephone.trim()) return setError('Le téléphone est obligatoire.');
 
         const payload: Partial<Client> = {
@@ -47,7 +47,7 @@ export default function ClientFormModal({ client, initialName, onClose, onSaved 
             nom: nom.trim() || raisonSociale.trim(),
             prenom: prenom.trim() || undefined,
             raisonSociale: type === 'entreprise' ? raisonSociale.trim() || undefined : undefined,
-            email: email.trim(),
+            email: !email.trim() ? "--" : email.trim(),
             telephone: telephone.trim(),
             telephone2: telephone2.trim() || undefined,
             adresse: {
@@ -87,7 +87,6 @@ export default function ClientFormModal({ client, initialName, onClose, onSaved 
             <form
                 onSubmit={submit}
                 onClick={(e) => e.stopPropagation()}
-                data-os-scroll
                 className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -119,7 +118,7 @@ export default function ClientFormModal({ client, initialName, onClose, onSaved 
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                        <Field label="Email *" type="email" value={email} onChange={setEmail} />
+                        <Field label="Email" type="email" value={email} onChange={setEmail} />
                         <Field label="Téléphone *" value={telephone} onChange={setTelephone} />
                     </div>
 

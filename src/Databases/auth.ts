@@ -69,7 +69,7 @@ export async function setupFirstAdmin(data: {
   }
 
   const motDePasseHash = hashPassword(data.motDePasse);
-  const created = createAdministrateur({
+  const created = await createAdministrateur({
     nom: data.nom,
     prenom: data.prenom,
     email: data.email,
@@ -188,7 +188,7 @@ export async function createUser(data: {
   if (admins?.some((a) => a.email.toLowerCase() === data.email.toLowerCase())) {
     return { ok: false, error: 'Email déjà utilisé' };
   }
-  const created = createAdministrateur({
+  const created = await createAdministrateur({
     nom: data.nom,
     prenom: data.prenom,
     email: data.email,
@@ -241,7 +241,7 @@ export async function ingestServerUser(
     } as Partial<Administrateur>);
     saved = updated ? ({ ...existing, ...updated } as Administrateur) : null;
   } else {
-    saved = createAdministrateur({
+    saved = (await createAdministrateur({
       nom: serverUser.nom,
       prenom: serverUser.prenom,
       email: serverUser.email,
@@ -251,7 +251,7 @@ export async function ingestServerUser(
       avatar: undefined,
       statut: serverUser.statut ?? 'actif',
       derniereConnexion: now,
-    } as unknown as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>) as Administrateur | null;
+    } as unknown as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>)) as Administrateur | null;
   }
   if (!saved) return { ok: false, error: 'Échec persistance locale' };
   const safe = stripHash(saved);

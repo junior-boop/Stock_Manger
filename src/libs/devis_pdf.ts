@@ -47,6 +47,13 @@ function renderCustomFields(): string {
         })
         .join('');
 }
+function renderCustomFieldValues(): string {
+    if (!COMPANY.customFields?.length) return '';
+    return COMPANY.customFields
+        .filter((f) => f.value?.trim())
+        .map((f) => `<div>${escLocal(f.value)}</div>`)
+        .join('');
+}
 function escLocal(s: unknown): string {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -83,7 +90,7 @@ function renderLigneRow(l: LigneDocument, showTVA: boolean): string {
                 <div class="strong">${esc(l.designation)}</div>
                 <div class="muted small">${esc(l.reference)}</div>
             </td>
-            <td class="center">${l.quantite} ${esc(l.unite)}</td>
+            <td class="center">${l.quantite}</td>
             <td class="center">${formatFCFA(l.prixUnitaireHT)}</td>
             <td class="center">${l.remise ? l.remise + '%' : '—'}</td>
             ${showTVA ? `<td class="center">${l.tauxTVA}%</td>` : ''}
@@ -97,11 +104,11 @@ function renderLignesTable(lignes: LigneDocument[], showTVA: boolean): string {
         <thead>
             <tr>
                 <th class="designation">Désignation</th>
-                <th class="center" style = "text-align: center;">Qté</th>
+                <th class="center" style = "text-align: center; width : 7.5%;">Qté</th>
                 <th class="center" style = "text-align: center;">P.U. HT</th>
-                <th class="center" style = "text-align: center">Remise</th>
-                ${showTVA ? `<th class="center" style = "text-align: center;">TVA</th>` : ''}
-                <th class="right" style = "text-align: right;">Total TTC</th>
+                <th class="center" style = "text-align: center; width : 7.5%">Remise</th>
+                ${showTVA ? `<th class="center" style = "text-align: center; width: 5%">TVA</th>` : ''}
+                <th class="right" style = "text-align: right; width : 10%;">Total TTC</th>
             </tr>
         </thead>
     `;
@@ -162,17 +169,29 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(devis.numero)}</title>
+<title>${esc(COMPANY.nom)} — ${esc(devis.numero)}${COMPANY.telephone ? ` — ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` — ${esc(COMPANY.email)}` : ''}</title>
 <style>
+    @page { margin: 15mm 15mm 10mm 15mm; }
+
     * { box-sizing: border-box; }
     body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #0f172a;
         font-size: 11px;
         margin: 0;
-        padding: 24px 28px;
+        padding: 24px 28px 30mm 28px;
         line-height: 1.45;
     }
+    .fixed-footer {
+        position: fixed; bottom: -120px; left: 0; right: 0;
+        background: #fff; border-top: 1px solid #e2e8f0;
+        padding: 6px 28px;
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 8px; color: #64748b;
+        z-index: 100;
+    }
+    .fixed-footer .fi-left { display: flex; align-items: center; gap: 8px; }
+    .fixed-footer .fi-name { font-weight: 600; color: #0f172a; font-size: 9px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 2px solid #0f172a; }
     .company-name { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
     .company-info { color: #475569; font-size: 10px; line-height: 1.5; margin-top: 4px; }
@@ -191,8 +210,8 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
     .sub-header { background: #e2e8f0; padding: 4px 10px; font-weight: 600; font-size: 10px; margin-top: 6px; }
     table.lignes { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
     table.lignes th { text-align: left; background: #f1f5f9; padding: 6px 8px; font-size: 9px; text-transform: uppercase; color: #475569; font-weight: 600; border-bottom: 1px solid #cbd5e1; }
-    table.lignes td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
-    .designation { text-align: left; width: 25%; }
+    table.lignes td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .designation { text-align: left; min-width: 50%; }
     .right { text-align: right; }
     .center { text-align: center; }
     .totals { margin-top: 20px; display: flex; justify-content: flex-end; }
@@ -209,12 +228,11 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
 <body>
     <div class="header">
         <div style="display:flex;align-items:center;gap:14px;">
-            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:56px;max-width:140px;object-fit:contain;" />` : ''}
             <div>
-                <div class="company-name">${esc(COMPANY.nom)}</div>
+                ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(COMPANY.nom)}</div>`}
                 <div class="company-info">
                     ${esc(COMPANY.adresse)}<br/>
-                    ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+                    ${esc(COMPANY.telephone)}<br/>${esc(COMPANY.email)}
                     ${renderCustomFields()}
                 </div>
             </div>
@@ -256,7 +274,7 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
         (${esc(formatFCFA(devis.totalApreRemise))}) toutes taxes comprises.
     </div>
 
-    ${notes || conditionsPaiement ? `
+    ${notes || conditionsPaiement || renderCustomFieldValues() ? `
         <div class="footer">
             ${conditionsPaiement ? `
                 <div class="footer-section">
@@ -270,11 +288,29 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
                     <div>${esc(notes)}</div>
                 </div>
             ` : ''}
+           
         </div>
     ` : ''}
+    
 </body>
 </html>`;
 }
+
+// <div class="fixed-footer">
+//         <div class="fi-left">
+//             ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:24px;max-width:70px;object-fit:contain;" />` : ''}
+//             <div>
+//                 <div class="fi-name">${esc(COMPANY.nom)}</div>
+//                 <div>${esc(COMPANY.adresse)}${COMPANY.telephone ? ` · ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` · ${esc(COMPANY.email)}` : ''}</div>
+//             </div>
+//         </div>
+//     </div>
+//  ${renderCustomFieldValues() ? `
+//                 <div class="footer-section">
+//                     <div class="label">Informations complémentaires</div>
+//                     ${renderCustomFieldValues()}
+//                 </div>
+//             ` : ''}
 
 export function buildWhatsAppMessage(devis: Devis, client: Client | undefined): string {
     const name = client

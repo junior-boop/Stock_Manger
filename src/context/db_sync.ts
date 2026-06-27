@@ -26,6 +26,7 @@ const CAMEL_TO_SNAKE: Record<string, SyncableTable> = {
     boutiques: 'boutiques',
     stocksBoutique: 'stocks_boutique',
     transfertsStock: 'transferts_stock',
+    entreprises: 'entreprises',
 };
 
 function triggerSync() {

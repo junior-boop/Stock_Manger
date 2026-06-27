@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDatabase } from '../databaseProvider';
 import { Administrateur, RoleAdmin, Technicien } from '../Databases/db.d';
 import { useAuth, usePermissions } from '../auth/authProvider';
+import { syncClient } from '../context/sync_client';
 import { useAlerts } from '../components/alerts';
 import { setDevisCompanyInfo } from '../libs/devis_pdf';
 import { setFactureCompanyInfo } from '../libs/facture_pdf';
@@ -637,6 +638,7 @@ type CustomField = {
 };
 
 type EntrepriseForm = {
+    matricule: string;
     nom: string;
     adresse: string;
     telephone: string;
@@ -649,7 +651,7 @@ type EntrepriseForm = {
 };
 
 const EMPTY_ENTREPRISE: EntrepriseForm = {
-    nom: '', adresse: '', telephone: '', email: '',
+    matricule: '', nom: '', adresse: '', telephone: '', email: '',
     logoDataUrl: '', notesDevis: '', notesFacture: '', conditionsPaiement: '',
     customFields: [],
 };
@@ -758,6 +760,10 @@ function EntrepriseSection() {
                     <div className="flex flex-col gap-1">
                         <label className="text-xs font-medium text-gray-600">Adresse</label>
                         <input value={form.adresse} onChange={(e) => setForm((f) => ({ ...f, adresse: e.target.value }))} className={inputCls(false)} />
+                    </div>
+                    <div className="flex flex-col gap-1 col-span-2">
+                        <label className="text-xs font-medium text-gray-600">Matricule de l'entreprise</label>
+                        <input value={form.matricule} onChange={(e) => setForm((f) => ({ ...f, matricule: e.target.value }))} className={inputCls(false)} />
                     </div>
                 </div>
             </div>
@@ -1402,6 +1408,11 @@ function SauvegardeSection() {
             setCfg(next);
             setEmail(''); setMotDePasse('');
             notifySuccess('Sync', `Connecté en tant que ${res.user?.email}`);
+            const role = res.user?.role ?? null;
+            void syncClient
+                .start()
+                .then(() => syncClient.bootstrapIfEmpty(role))
+                .catch(() => undefined);
         } else {
             notifyError('Sync', res.error || 'Identifiants invalides');
         }

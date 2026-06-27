@@ -443,6 +443,46 @@ export interface TacheProjet {
  * ou d'un contexte de données local (SQLite, JSON, etc.)
  */
 // ─────────────────────────────────────────────
+//  CHAMP PERSONNALISÉ (Entreprise)
+// ─────────────────────────────────────────────
+
+export type ChampType = 'email' | 'tel' | 'url' | 'address' | 'text'
+
+export interface CustomField {
+  id: string
+  type: ChampType
+  label: string
+  value: string
+}
+
+
+// ─────────────────────────────────────────────
+//  ENTREPRISE (paramètres société, ligne unique)
+// ─────────────────────────────────────────────
+
+export interface Entreprise {
+  id: ID
+  matricule: string
+  nom: string
+  adresse: string
+  telephone: string
+  email: string
+  logoDataUrl: string
+  notesDevis: string
+  notesFacture: string
+  conditionsPaiement: string
+  setupDone: boolean
+  customFields: CustomField[]
+  devisPrefix: string
+  facturePrefix: string
+  numeroFormat: string
+  tvaDefault: number
+  devise: string
+  afficherTVA: boolean
+}
+
+
+// ─────────────────────────────────────────────
 //  INVENTAIRE
 // ─────────────────────────────────────────────
 

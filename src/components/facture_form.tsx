@@ -466,7 +466,7 @@ function LigneRow({
                 {!readOnly && (
                     <button
                         type="button"
-                        className="absolute top-1/2 -translate-y-1/2 -left-9 w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing select-none opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute bg-white shadow-2xs top-1/2 -translate-y-1/2 -left-9 w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing select-none opacity-0 group-hover:opacity-100 transition-opacity"
                         draggable
                         onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
                         onDragEnd={onDragEnd}
@@ -537,7 +537,7 @@ function LigneRow({
                         <button
                             type="button"
                             onClick={() => setMenuOpen((v) => !v)}
-                            className="h-8 w-8 rounded-full hover:bg-slate-100 text-gray-400 hover:text-gray-700 inline-flex items-center justify-center transition-colors"
+                            className="h-8 w-8 rounded-full bg-white shadow-2xs hover:bg-slate-100 text-gray-400 hover:text-gray-700 inline-flex items-center justify-center transition-colors"
                             aria-label="Options de la ligne"
                         >
 
@@ -657,7 +657,7 @@ function ArticlePicker({
                             onChange={(e) => setQuery(e.target.value)}
                             className="w-full h-9 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
                         />
-                        <div data-os-scroll className="mt-2 max-h-72 overflow-y-auto">
+                        <div className="mt-2 max-h-72 overflow-y-auto">
                             {filtered.length === 0 ? (
                                 <div className="text-sm text-gray-400 text-center py-6">Aucun article.</div>
                             ) : filtered.map((a) => {
@@ -747,7 +747,7 @@ function ClientPicker({
                 className="mt-1 w-full h-10 px-4 rounded-full bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-slate-400"
             />
             {open && !disabled && (
-                <div data-os-scroll className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg p-2 z-50 max-h-72 overflow-y-auto">
+                <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-lg p-2 z-50 max-h-72 overflow-y-auto">
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-4">Aucun client trouvé.</div>
                     ) : filtered.map((c) => (

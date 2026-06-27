@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, shell, dialog, session } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import * as XLSX from 'xlsx';
@@ -109,6 +109,9 @@ import {
   applyRemoteEntry,
   SYNCABLE_TABLES,
   type RemoteSyncEntry,
+  // Entreprise
+  getEntreprise,
+  updateEntreprise,
 } from './Databases';
 import {
   isSetupDone,
@@ -374,7 +377,8 @@ ipcMain.handle('images:save', async (event, base64Data: string, filename: string
   try {
     const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Image, 'base64');
-    const filePath = path.join(imagesDir, filename);
+    const safeName = path.basename(filename);
+    const filePath = path.join(imagesDir, safeName);
     fs.writeFileSync(filePath, buffer);
     return filePath;
   } catch (error) {
@@ -482,7 +486,29 @@ async function renderPdfToFile(html: string, filename: string, dir: string): Pro
     const buffer = await pdfWin.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
-      margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
+      displayHeaderFooter: true,
+      headerTemplate: '<span></span>',
+      footerTemplate: `
+        <div style="
+          width: 100%;
+          text-align: center;
+          font-size: 8pt;
+          color: #94a3b8;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          line-height: 1.7;
+          padding: 0 15mm;
+        ">
+          <span class="title"></span><br>
+          Page <span class="pageNumber"></span> / <span class="totalPages"></span>
+        </div>
+      `
+      // margins: {
+      //   marginType: 'custom',
+      //   top: 0,
+      //   bottom: 12,
+      //   left: 0,
+      //   right: 0,
+      // },
     });
     const safeName = filename.replace(/[^a-zA-Z0-9_\-.]/g, '_');
     const filePath = path.join(dir, `${safeName}.pdf`);
@@ -564,67 +590,75 @@ ipcMain.handle('export:articlesExcel', async () => {
 
 // ======================== IPC HANDLERS - COMPANY INFO ========================
 const companyInfoPath = path.join(app.getPath('userData'), 'entreprise.json');
-type CustomField = {
-  id: string;
-  type: 'email' | 'tel' | 'url' | 'address' | 'text';
-  label: string;
-  value: string;
-};
 
-const DEFAULT_COMPANY: {
-  nom: string;
-  adresse: string;
-  telephone: string;
-  email: string;
-  logoDataUrl: string;
-  notesDevis: string;
-  notesFacture: string;
-  conditionsPaiement: string;
-  setupDone: boolean;
-  customFields: CustomField[];
-  devisPrefix: string;
-  facturePrefix: string;
-  numeroFormat: string;
-  tvaDefault: number;
-  devise: string;
-  afficherTVA: boolean;
-} = {
-  nom: 'Kataleya',
-  adresse: 'Douala, Cameroun',
-  telephone: '+237 6XX XX XX XX',
-  email: 'contact@kataleya.com',
-  logoDataUrl: '',
-  notesDevis: '',
-  notesFacture: '',
-  conditionsPaiement: '',
-  setupDone: false,
-  customFields: [],
-  devisPrefix: 'DEV',
-  facturePrefix: 'FAC',
-  numeroFormat: 'PREFIX-YYYY-NNNN',
-  tvaDefault: 19.25,
-  devise: 'FCFA',
-  afficherTVA: true,
-};
-
-function readCompanyInfo(): typeof DEFAULT_COMPANY {
+function migrateCompanyJsonToDb() {
   try {
-    if (!fs.existsSync(companyInfoPath)) return { ...DEFAULT_COMPANY };
+    if (!fs.existsSync(companyInfoPath)) return;
     const raw = fs.readFileSync(companyInfoPath, 'utf-8');
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_COMPANY, ...parsed };
+    updateEntreprise(parsed);
+    fs.unlinkSync(companyInfoPath);
+    console.log('[company] Données migrées de entreprise.json vers la base SQLite');
   } catch (e) {
-    console.error('Erreur lecture entreprise.json:', e);
-    return { ...DEFAULT_COMPANY };
+    console.error('[company] Erreur migration depuis entreprise.json:', e);
   }
 }
 
-ipcMain.handle('company:get', async () => readCompanyInfo());
-ipcMain.handle('company:set', async (_event, data: Partial<typeof DEFAULT_COMPANY>) => {
-  const current = readCompanyInfo();
-  const next = { ...current, ...data };
-  fs.writeFileSync(companyInfoPath, JSON.stringify(next, null, 2), 'utf-8');
-  return next;
+ipcMain.handle('company:get', async () => {
+  const fromDb = getEntreprise();
+  if (fromDb) {
+    const { id, ...data } = fromDb;
+    return data;
+  }
+  // Aucune donnée en base → tenter la migration depuis le JSON
+  migrateCompanyJsonToDb();
+  const afterMigration = getEntreprise();
+  if (afterMigration) {
+    const { id, ...data } = afterMigration;
+    return data;
+  }
+  // Valeurs par défaut
+  return {
+    nom: 'Kataleya',
+    adresse: 'Douala, Cameroun',
+    telephone: '+237 6XX XX XX XX',
+    email: 'contact@kataleya.com',
+    logoDataUrl: '',
+    notesDevis: '',
+    notesFacture: '',
+    conditionsPaiement: '',
+    setupDone: false,
+    customFields: [],
+    devisPrefix: 'DEV',
+    facturePrefix: 'FAC',
+    numeroFormat: 'PREFIX-YYYY-NNNN',
+    tvaDefault: 19.25,
+    devise: 'FCFA',
+    afficherTVA: true,
+  };
+});
+
+ipcMain.handle('company:set', async (_event, data) => {
+  const updated = updateEntreprise(data);
+  if (fs.existsSync(companyInfoPath)) {
+    fs.unlinkSync(companyInfoPath);
+  }
+  if (updated) {
+    const { id, ...rest } = updated;
+    return rest;
+  }
+  return data;
+});
+
+// ======================== IPC HANDLERS - ENTREPRISES (SYNC) ========================
+ipcMain.handle('entreprises:getById', async (_event, id: string) => {
+  const row = getEntreprise();
+  if (row && row.id === id) return row;
+  return null;
+});
+ipcMain.handle('entreprises:getAll', async () => {
+  const row = getEntreprise();
+  return row ? [row] : [];
 });
 
 // ======================== IPC HANDLERS - SYNC CONFIG ========================
@@ -854,7 +888,13 @@ ipcMain.handle('sync:markLastSync', async () => {
 });
 
 ipcMain.handle('shell:openPath', async (_event, p: string) => shell.openPath(p));
-ipcMain.handle('shell:openExternal', async (_event, url: string) => shell.openExternal(url));
+ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+  } catch { return; }
+  return shell.openExternal(url);
+});
 ipcMain.handle('shell:showItemInFolder', async (_event, p: string) => shell.showItemInFolder(p));
 
 // ======================== IPC HANDLER - REFERENCE AUTOINCREMENT ========================
@@ -872,6 +912,22 @@ ipcMain.handle('articles:generateReference', async (event, collectionId: string)
     console.error('Erreur lors de la génération de la référence:', error);
     throw error;
   }
+});
+
+session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+  cb({
+    responseHeaders: {
+      ...details.responseHeaders,
+      'Content-Security-Policy': [
+        "default-src 'self'; " +
+        "script-src 'self'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob:; " +
+        "connect-src 'self' https://*.workers.dev; " +
+        "font-src 'self' data:"
+      ],
+    },
+  });
 });
 
 const createWindow = () => {
@@ -920,8 +976,8 @@ const createWindow = () => {
   mainWindow.maximize();
   mainWindow.show()
 
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  // Open the DevTools (dev only).
+  if (!app.isPackaged) mainWindow.webContents.openDevTools();
 };
 
 // This method will be called when Electron has finished
