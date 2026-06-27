@@ -111,7 +111,7 @@ const Router = () => {
     }
 
     if (!isSetupDone) {
-        return <SetupPage />;
+        return <SetupPage onDone={() => { console.log('je suis dans la place'); setSyncProgress('needed') }} />;
     }
 
     if (!user) {

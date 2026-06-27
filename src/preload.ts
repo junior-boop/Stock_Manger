@@ -306,6 +306,14 @@ const syncApi = {
     deleted?: boolean;
     data?: Record<string, unknown> | null;
   }): Promise<boolean> => ipcRenderer.invoke('sync:applyRemote', entry),
+  applyRemoteBatch: (entries: Array<{
+    table: string;
+    id: string;
+    version: number;
+    deleted?: boolean;
+    data?: Record<string, unknown> | null;
+  }>): Promise<{ ok: number; failed: number }> =>
+    ipcRenderer.invoke('sync:applyRemoteBatch', entries),
   syncState: {
     maxVersion: (): Promise<number> => ipcRenderer.invoke('sync:syncStateMaxVersion'),
     isEmpty: (): Promise<boolean> => ipcRenderer.invoke('sync:syncStateIsEmpty'),
@@ -350,6 +358,7 @@ contextBridge.exposeInMainWorld('exportApi', exportApi);
 
 // ======================== WINDOW CONTROLS ========================
 const windowApi = {
+  platform: process.platform,
   minimize: () => ipcRenderer.invoke('window:minimize'),
   maximize: () => ipcRenderer.invoke('window:maximize'),
   close: () => ipcRenderer.invoke('window:close'),
@@ -362,3 +371,33 @@ const windowApi = {
 };
 
 contextBridge.exposeInMainWorld('win', windowApi);
+
+// ======================== AUTO-UPDATE ========================
+const updateApi = {
+  getStatus: (): Promise<{
+    checking: boolean;
+    available: boolean;
+    downloading: boolean;
+    downloaded: boolean;
+    version: string | null;
+    currentVersion: string;
+    error: string | null;
+    progress: number;
+  }> => ipcRenderer.invoke('update:getStatus'),
+  check: () => ipcRenderer.invoke('update:check'),
+  download: () => ipcRenderer.invoke('update:download'),
+  install: () => ipcRenderer.invoke('update:install'),
+  setFeedURL: (url: string) => ipcRenderer.invoke('update:setFeedURL', url),
+  onStatus: (cb: (status: any) => void): (() => void) => {
+    ipcRenderer.send('update:subscribe');
+    const listener = (_event: unknown, status: any) => cb(status);
+    ipcRenderer.on('update:status', listener);
+    return () => ipcRenderer.removeListener('update:status', listener);
+  },
+  onDownloaded: (cb: () => void): (() => void) => {
+    const listener = () => cb();
+    ipcRenderer.on('update:downloaded', listener);
+    return () => ipcRenderer.removeListener('update:downloaded', listener);
+  },
+};
+contextBridge.exposeInMainWorld('updateApi', updateApi);

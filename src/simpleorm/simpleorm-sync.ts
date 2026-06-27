@@ -74,6 +74,7 @@ export interface ModelClass<T extends DatabaseRow> extends ModelWithMeta<T> {
   offset(offset: number): QueryBuilder<T>;
   include(options: IncludeOptions | IncludeOptions[]): QueryBuilder<T>;
   upsert(data: Partial<T>): T;
+  batchUpsert(dataArray: Partial<T>[]): T[];
   upsertWithCoalesce(data: Partial<T>): T;
   createMany(dataArray: Partial<T>[]): T[];
   updateWhere(conditions: WhereConditions, data: Partial<T>): number;
@@ -485,6 +486,27 @@ export class SimpleORM {
     const result = await this.run(sql, params);
 
     return { id: result.lastInsertRowid, ...data } as T;
+  }
+
+  batchUpsert<T extends DatabaseRow>(
+    tableName: string,
+    dataArray: Partial<T>[]
+  ): T[] {
+    return this.transaction(() => {
+      return dataArray.map((data) => {
+        const columns = Object.keys(data);
+        const placeholders = columns.map(() => "?").join(", ");
+        const updateValues = columns
+          .map((col) => `${col} = excluded.${col}`)
+          .join(", ");
+        const sql = `INSERT INTO ${tableName} (${columns.join(", ")})
+                     VALUES (${placeholders})
+                     ON CONFLICT (id) DO UPDATE SET ${updateValues}`;
+        const params = Object.values(data);
+        const result = this.run(sql, params);
+        return { id: result.lastInsertRowid, ...data } as T;
+      });
+    });
   }
 
   async upsertWithCoalesce<T extends DatabaseRow>(
@@ -1150,6 +1172,9 @@ export class ModelFactory {
 
       static async upsert(data: Partial<T>): Promise<T> {
         return orm.upsert<T>(tableName, data);
+      }
+      static batchUpsert(dataArray: Partial<T>[]): T[] {
+        return orm.batchUpsert<T>(tableName, dataArray);
       }
       static async upsertWithCoalesce(data: Partial<T>): Promise<T> {
         return orm.upsertWithCoalesce<T>(tableName, data);

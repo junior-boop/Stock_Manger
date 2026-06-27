@@ -458,9 +458,12 @@ export async function getAllAdministrateurs() {
   }
 }
 
-export async function createAdministrateur(data: Omit<Administrateur, "id" | "createdAt" | "updatedAt">, opts?: { fromSync?: boolean }) {
+export async function createAdministrateur(
+  data: Omit<Administrateur, "id" | "createdAt" | "updatedAt">,
+  opts?: { fromSync?: boolean; id?: string },
+) {
   try {
-    const id = uuidv4();
+    const id = opts?.id || uuidv4();
     const result = await Administrateurs.create({
       id,
       nom: data.nom,
@@ -1224,7 +1227,10 @@ export function updateBoutique(id: string, data: Partial<Omit<Boutique, "id" | "
   try {
     const updateData: any = { ...data, updatedAt: new Date().toISOString() };
     const result = Boutiques.update(id, updateData);
-    if (result && !opts?.fromSync) syncState.markDirty("boutiques", id);
+    if (result && !opts?.fromSync) {
+      const b = getBoutiqueById(id);
+      if (!b?.isPrincipal) syncState.markDirty("boutiques", id);
+    }
     return result;
   } catch (e) { console.error(e); return null; }
 }
@@ -1985,6 +1991,30 @@ export const syncState = {
     );
   },
 
+  /** Pull batch : applique plusieurs entrées serveur dans une transaction. */
+  batchApplyRemote(entries: Array<{
+    table: string;
+    id: string;
+    version: number;
+    deleted?: boolean;
+  }>): void {
+    const now = new Date().toISOString();
+    orm.transaction(() => {
+      for (const entry of entries) {
+        const deleted = entry.deleted ? 1 : 0;
+        orm.run(
+          `INSERT INTO sync_state (table_name, element_id, version, deleted, lastPulledAt)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(table_name, element_id) DO UPDATE SET
+             version      = excluded.version,
+             deleted      = excluded.deleted,
+             lastPulledAt = excluded.lastPulledAt`,
+          [entry.table, entry.id, entry.version, deleted, now],
+        );
+      }
+    });
+  },
+
   /** Compte total — utile pour décider d'un bootstrap initial. */
   isEmpty(): boolean {
     const row = orm.get<{ n: number }>("SELECT COUNT(*) AS n FROM sync_state");
@@ -2038,6 +2068,53 @@ export type RemoteSyncEntry = {
   deleted?: boolean;
   data?: Record<string, unknown> | null;
 };
+
+export type BatchResult = { ok: number; failed: number };
+
+export function batchApplyRemoteEntries(entries: RemoteSyncEntry[]): BatchResult {
+  const byTable = new Map<string, RemoteSyncEntry[]>();
+  for (const e of entries) {
+    const list = byTable.get(e.table) || [];
+    list.push(e);
+    byTable.set(e.table, list);
+  }
+
+  let ok = 0;
+  let failed = 0;
+
+  for (const [tableName, tableEntries] of byTable) {
+    const model = (SYNC_MODEL_MAP as Record<string, any>)[tableName];
+    if (!model) {
+      console.warn(`[sync:batchApplyRemote] table inconnue: ${tableName}`);
+      failed += tableEntries.length;
+      continue;
+    }
+
+    try {
+      const deletes = tableEntries.filter((e) => e.deleted);
+      const upserts = tableEntries.filter((e) => !e.deleted && e.data);
+
+      for (const entry of deletes) {
+        try { model.delete(entry.id); } catch { /* idempotent */ }
+      }
+
+      if (upserts.length > 0) {
+        const payloads = upserts.map((e) =>
+          normalizeForSqlite({ ...e.data!, id: e.id }),
+        );
+        model.batchUpsert(payloads);
+      }
+
+      syncState.batchApplyRemote(tableEntries);
+      ok += tableEntries.length;
+    } catch (e) {
+      console.error(`[sync:batchApplyRemote] échec table ${tableName}`, e);
+      failed += tableEntries.length;
+    }
+  }
+
+  return { ok, failed };
+}
 
 export async function applyRemoteEntry(entry: RemoteSyncEntry): Promise<boolean> {
   const model = (SYNC_MODEL_MAP as Record<string, any>)[entry.table];
@@ -2111,13 +2188,14 @@ function seedLocalSyncStateIfNeeded() {
   console.info("[sync:seed] sync_state vide + données métier existantes → seed local");
   const perTable: Record<string, number> = {};
   for (const table of SYNCABLE_TABLES) {
+    const extraCondition = table === "boutiques" ? "AND isPrincipal != 1" : "";
     orm.run(
       `INSERT INTO sync_state (table_name, element_id, version, localVersion, dirty, deleted)
        SELECT ?, id, 0, 1, 1, 0 FROM ${table}
        WHERE NOT EXISTS (
          SELECT 1 FROM sync_state s
          WHERE s.table_name = ? AND s.element_id = ${table}.id
-       )`,
+       ) ${extraCondition}`,
       [table, table],
     );
     const after = orm.get<{ n: number }>(

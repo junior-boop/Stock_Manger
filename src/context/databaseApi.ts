@@ -25,6 +25,7 @@ declare global {
       inventaires: any;
     };
     win: {
+      platform: string;
       minimize: () => Promise<void>;
       maximize: () => Promise<boolean>;
       close: () => Promise<void>;
@@ -79,6 +80,13 @@ declare global {
         deleted?: boolean;
         data?: Record<string, unknown> | null;
       }) => Promise<boolean>;
+      applyRemoteBatch: (entries: Array<{
+        table: string;
+        id: string;
+        version: number;
+        deleted?: boolean;
+        data?: Record<string, unknown> | null;
+      }>) => Promise<{ ok: number; failed: number }>;
       syncState: {
         maxVersion: () => Promise<number>;
         isEmpty: () => Promise<boolean>;
@@ -99,6 +107,24 @@ declare global {
       onRemoteChange: (
         cb: (payload: { table: string; id: string; deleted: boolean }) => void,
       ) => () => void;
+    };
+    updateApi: {
+      getStatus: () => Promise<{
+        checking: boolean;
+        available: boolean;
+        downloading: boolean;
+        downloaded: boolean;
+        version: string | null;
+        currentVersion: string;
+        error: string | null;
+        progress: number;
+      }>;
+      check: () => Promise<void>;
+      download: () => Promise<void>;
+      install: () => void;
+      setFeedURL: (url: string) => Promise<void>;
+      onStatus: (cb: (status: any) => void) => () => void;
+      onDownloaded: (cb: () => void) => () => void;
     };
   }
 }

@@ -467,31 +467,46 @@ export class SyncClient {
                 console.warn(`${TAG} clear ${table} échec`, e);
             }
 
-            for (const item of allItems) {
-                try {
-                    const ok = await window.syncApi.applyRemote({
-                        table,
-                        id: item.id,
-                        version: item.version,
-                        deleted: item.deleted,
-                        data: item.data,
-                    });
-                    if (ok) totalApplied++;
-                    else totalFailed++;
-                    if (ok && table === "articles" && !item.deleted && item.data) {
-                        const raw = (item.data as any)?.images;
-                        let arr: string[] = [];
-                        try {
-                            arr = typeof raw === "string" ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
-                        } catch { arr = []; }
-                        for (const f of arr) {
-                            const name = imageBasename(f);
-                            if (name) this.enqueueImage("download", name);
-                        }
+            // Application batch : tous les items de la table en une seule
+            // transaction SQLite via le main process.
+            const liveItems = allItems.filter((i) => !i.deleted && i.data);
+            const deletedItems = allItems.filter((i) => i.deleted);
+            const batchEntries: Array<{
+                table: string;
+                id: string;
+                version: number;
+                deleted?: boolean;
+                data?: Record<string, unknown> | null;
+            }> = [
+                ...liveItems.map((i) => ({
+                    table,
+                    id: i.id,
+                    version: i.version,
+                    data: i.data,
+                })),
+                ...deletedItems.map((i) => ({
+                    table,
+                    id: i.id,
+                    version: i.version,
+                    deleted: true,
+                })),
+            ];
+            const batchResult = await window.syncApi.applyRemoteBatch(batchEntries);
+            totalApplied += batchResult.ok;
+            totalFailed += batchResult.failed;
+
+            // Files images articles (toujours en individual, car hors SQLite)
+            for (const item of liveItems) {
+                if (table === "articles") {
+                    const raw = (item.data as any)?.images;
+                    let arr: string[] = [];
+                    try {
+                        arr = typeof raw === "string" ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
+                    } catch { arr = []; }
+                    for (const f of arr) {
+                        const name = imageBasename(f);
+                        if (name) this.enqueueImage("download", name);
                     }
-                } catch (e) {
-                    totalFailed++;
-                    console.warn(`${TAG} apply ${table}/${item.id} échec`, e);
                 }
             }
         }
@@ -659,10 +674,8 @@ export class SyncClient {
     }
 
     private async pullRemoteChanges() {
-        let pulled = 0;
-        let failed = 0;
         let iterations = 0;
-        const MAX_ITER = 50; // garde-fou contre une boucle infinie
+        const MAX_ITER = 50;
 
         while (iterations++ < MAX_ITER) {
             const since = await window.syncApi.syncState.maxVersion();
@@ -697,23 +710,75 @@ export class SyncClient {
             }
             if (data.items.length === 0) break;
 
-            const total = data.items.length;
-            for (let i = 0; i < total; i++) {
-                const entry = data.items[i];
-                const tableLabel = entry.table.replace(/_/g, ' ');
-                this.setPhase('pull', `Récupération ${tableLabel}…`, entry.table, pulled + failed + 1, total);
+            // Étape 1 : fetch les données pour les items non-deleted (en parallèle)
+            const fetchTasks = data.items.map(async (entry) => {
+                if (entry.deleted) {
+                    return { entry, data: null };
+                }
+                const res = await this.authedFetch(
+                    `/api/sync/${entry.table}/${entry.id}`,
+                    { method: "GET" },
+                );
+                if (!res.ok) {
+                    console.warn(`${TAG} fetch ${entry.table}/${entry.id} → HTTP ${res.status}`);
+                    return { entry, data: null, fetchFailed: true };
+                }
+                const row = parseJsonFields(entry.table as SyncableTable, await res.json());
+                return { entry, data: row };
+            });
+            const fetchResults = await Promise.all(fetchTasks);
+
+            // Étape 2 : grouper par table et appliquer en batch
+            const byTable = new Map<string, Array<{
+                table: string;
+                id: string;
+                version: number;
+                deleted?: boolean;
+                data?: Record<string, unknown> | null;
+            }>>();
+            for (const r of fetchResults) {
+                if (r.fetchFailed) continue;
+                const list = byTable.get(r.entry.table) || [];
+                list.push({
+                    table: r.entry.table,
+                    id: r.entry.id,
+                    version: r.entry.version,
+                    deleted: r.entry.deleted,
+                    data: r.data,
+                });
+                byTable.set(r.entry.table, list);
+            }
+
+            for (const [table, entries] of byTable) {
                 try {
-                    await this.applyRemoteInventoryEntry(entry);
-                    pulled++;
+                    const result = await window.syncApi.applyRemoteBatch(entries);
+                    if (result.ok > 0) {
+                        // Enqueue image downloads for articles
+                        if (table === "articles") {
+                            for (const e of entries) {
+                                if (!e.deleted && e.data) {
+                                    const raw = (e.data as any)?.images;
+                                    let arr: string[] = [];
+                                    try {
+                                        arr = typeof raw === "string" ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
+                                    } catch { arr = []; }
+                                    for (const f of arr) {
+                                        const name = imageBasename(f);
+                                        if (name) this.enqueueImage("download", name);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    const tableLabel = table.replace(/_/g, ' ');
+                    const total = data.items.length;
+                    this.setPhase('pull', `Récupération ${tableLabel}…`, table, 0, total);
                 } catch (e) {
-                    failed++;
-                    console.warn(`${TAG} apply échec`, entry, e);
+                    console.warn(`${TAG} batch apply échec pour ${table}`, e);
                 }
             }
+
             if (!data.hasMore) break;
-        }
-        if (pulled > 0 || failed > 0) {
-            console.info(`${TAG} pull terminé`, { pulled, failed });
         }
     }
 
@@ -824,6 +889,17 @@ export class SyncClient {
     }): Promise<"client" | "server"> {
         const table = row.table_name as SyncableTable;
         const id = row.element_id;
+
+        // Ne jamais pusher la boutique "Stock principal" (isPrincipal=1) :
+        // chaque poste a sa propre instance locale, elles ne doivent pas
+        // remonter sur le serveur partagé.
+        if (table === "boutiques") {
+            const local = await this.readLocalRow(table, id);
+            if (local && local.isPrincipal) {
+                await window.syncApi.syncState.markClean(table, id, row.version);
+                return "client";
+            }
+        }
 
         if (row.deleted === 1) {
             const res = await this.authedFetch(`/${table}/${id}`, {

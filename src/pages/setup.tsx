@@ -5,7 +5,7 @@ import logo from '../assets/Kataleya.png';
 type Mode = 'choose' | 'solo' | 'link-server' | 'online-login';
 type ServerReachability = 'idle' | 'checking' | 'ok' | 'fail';
 
-export default function SetupPage() {
+export default function SetupPage({ onDone }: { onDone?: () => void }) {
     const { setup, linkDevice, setupOnline, error, clearError } = useAuth();
     const [mode, setMode] = useState<Mode>('choose');
 
@@ -17,7 +17,7 @@ export default function SetupPage() {
     if (mode === 'choose') return <ChoosePage onSolo={goSolo} onServer={goServer} />;
     if (mode === 'solo') return <SoloSetup setup={setup} error={error} onBack={goChoose} />;
     if (mode === 'link-server') return <LinkServer linkDevice={linkDevice} error={error} onBack={goChoose} onDone={onLinked} />;
-    return <OnlineLogin setupOnline={setupOnline} error={error} onBack={() => setMode('link-server')} />;
+    return <OnlineLogin setupOnline={setupOnline} error={error} onBack={() => setMode('link-server')} onDone={onDone} />;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -242,10 +242,12 @@ function OnlineLogin({
     setupOnline,
     error,
     onBack,
+    onDone
 }: {
     setupOnline: ReturnType<typeof useAuth>['setupOnline'];
     error: string | null;
     onBack: () => void;
+    onDone: () => void
 }) {
     const [email, setEmail] = useState('');
     const [motDePasse, setMotDePasse] = useState('');
@@ -255,7 +257,8 @@ function OnlineLogin({
         e.preventDefault();
         if (!email || !motDePasse) return;
         setSubmitting(true);
-        await setupOnline(email, motDePasse);
+        const result = await setupOnline(email, motDePasse);
+        if (result) onDone()
         setSubmitting(false);
     };
 

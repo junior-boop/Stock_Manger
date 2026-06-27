@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, ipcMain, shell, dialog, session } from 'electron';
+import { AutoUpdateService } from './auto-update';
 import path from 'node:path';
 import fs from 'node:fs';
 import * as XLSX from 'xlsx';
@@ -107,8 +108,10 @@ import {
   // Sync (Phase 4)
   syncState,
   applyRemoteEntry,
+  batchApplyRemoteEntries,
   SYNCABLE_TABLES,
   type RemoteSyncEntry,
+  type BatchResult,
   // Entreprise
   getEntreprise,
   updateEntreprise,
@@ -353,6 +356,19 @@ ipcMain.handle('sync:applyRemote', async (_event, entry: RemoteSyncEntry) => {
     }
   }
   return ok;
+});
+ipcMain.handle('sync:applyRemoteBatch', async (_event, entries: RemoteSyncEntry[]) => {
+  const result = batchApplyRemoteEntries(entries);
+  if (result.ok > 0) {
+    const tables = new Set(entries.map((e) => e.table));
+    for (const table of tables) {
+      const payload = { table, id: '', deleted: false };
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('sync:remote-change', payload);
+      }
+    }
+  }
+  return result;
 });
 ipcMain.handle('sync:syncStateMaxVersion', async () => syncState.maxVersion());
 ipcMain.handle('sync:syncStateIsEmpty', async () => syncState.isEmpty());
@@ -914,29 +930,58 @@ ipcMain.handle('articles:generateReference', async (event, collectionId: string)
   }
 });
 
-session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
-  cb({
-    responseHeaders: {
-      ...details.responseHeaders,
-      'Content-Security-Policy': [
-        "default-src 'self'; " +
-        "script-src 'self'; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data: blob:; " +
-        "connect-src 'self' https://*.workers.dev; " +
-        "font-src 'self' data:"
-      ],
-    },
+app.whenReady().then(() => {
+  session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+    cb({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline'; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "img-src 'self' data: blob:; " +
+          "connect-src 'self' https://*.workers.dev; " +
+          "font-src 'self' data:"
+        ],
+      },
+    });
   });
+});
+
+// ======================== AUTO-UPDATE ========================
+const autoUpdate = new AutoUpdateService(app.getPath('userData'));
+const syncCfg = readSyncConfig();
+const defaultFeedURL = syncCfg.serverUrl
+    ? `${syncCfg.serverUrl.replace(/\/+$/, '')}/app/update`
+    : undefined;
+autoUpdate.init(defaultFeedURL);
+
+// Vérification périodique des mises à jour (toutes les 6h en prod, désactivé en dev)
+if (app.isPackaged) {
+  autoUpdate.checkForUpdates();
+  setInterval(() => autoUpdate.checkForUpdates(), 6 * 60 * 60 * 1000);
+}
+
+ipcMain.handle('update:getStatus', () => autoUpdate.getStatus());
+ipcMain.handle('update:check', () => { autoUpdate.checkForUpdates(); });
+ipcMain.handle('update:download', () => { autoUpdate.downloadUpdate(); });
+ipcMain.handle('update:install', () => { autoUpdate.quitAndInstall(); });
+ipcMain.handle('update:setFeedURL', (_e, url: string) => { autoUpdate.setFeedURL(url); });
+ipcMain.on('update:subscribe', (event) => {
+  const unsub = autoUpdate.subscribe((s) => {
+    event.sender.send('update:status', s);
+  });
+  event.sender.on('destroyed', unsub);
 });
 
 const createWindow = () => {
   // Create the browser window.
+  const isMac = process.platform === 'darwin';
   const mainWindow = new BrowserWindow({
     width: 1920,
     height: 1020,
-    frame: false,
-    titleBarStyle: 'hidden',
+    frame: isMac ? true : false,
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     backgroundColor: '#f8fafc',
     webPreferences: {
       nodeIntegration: false,
@@ -944,10 +989,9 @@ const createWindow = () => {
       webSecurity: true,
       devTools: !app.isPackaged,
       experimentalFeatures: true,
-
       preload: path.join(__dirname, 'preload.js'),
     },
-    show : false
+    show: false,
   });
 
   // ======================== IPC HANDLERS - WINDOW CONTROLS ========================

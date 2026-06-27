@@ -3,6 +3,7 @@ import {
   getAllAdministrateurs,
   createAdministrateur,
   updateAdministrateur,
+  deleteAdministrateur,
 } from './index';
 import type { Administrateur, RoleAdmin } from './db';
 
@@ -229,17 +230,38 @@ export async function ingestServerUser(
   const now = new Date().toISOString();
   let saved: Administrateur | null = null;
   if (existing) {
-    const updated = updateAdministrateur(existing.id, {
-      nom: serverUser.nom,
-      prenom: serverUser.prenom,
-      email: serverUser.email,
-      telephone: serverUser.telephone,
-      role: serverUser.role,
-      motDePasseHash: serverUser.motDePasseHash,
-      statut: serverUser.statut ?? 'actif',
-      derniereConnexion: now,
-    } as Partial<Administrateur>);
-    saved = updated ? ({ ...existing, ...updated } as Administrateur) : null;
+    if (existing.id !== serverUser.id) {
+      // L'admin local a un ID différent du serveur (ex: créé en local puis
+      // rattaché à un serveur). On migre vers l'ID serveur pour que les
+      // références (createdBy, sync_state) restent cohérentes.
+      const deleted = await deleteAdministrateur(existing.id);
+      if (!deleted) return { ok: false, error: 'Échec migration ID admin' };
+      saved = (await createAdministrateur({
+        nom: serverUser.nom,
+        prenom: serverUser.prenom,
+        email: serverUser.email,
+        telephone: serverUser.telephone,
+        role: serverUser.role,
+        motDePasseHash: serverUser.motDePasseHash,
+        avatar: existing.avatar,
+        statut: serverUser.statut ?? existing.statut,
+        derniereConnexion: now,
+      } as unknown as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>,
+        { fromSync: true, id: serverUser.id },
+      )) as Administrateur | null;
+    } else {
+      const updated = updateAdministrateur(existing.id, {
+        nom: serverUser.nom,
+        prenom: serverUser.prenom,
+        email: serverUser.email,
+        telephone: serverUser.telephone,
+        role: serverUser.role,
+        motDePasseHash: serverUser.motDePasseHash,
+        statut: serverUser.statut ?? 'actif',
+        derniereConnexion: now,
+      } as Partial<Administrateur>);
+      saved = updated ? ({ ...existing, ...updated } as Administrateur) : null;
+    }
   } else {
     saved = (await createAdministrateur({
       nom: serverUser.nom,
@@ -251,7 +273,9 @@ export async function ingestServerUser(
       avatar: undefined,
       statut: serverUser.statut ?? 'actif',
       derniereConnexion: now,
-    } as unknown as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>)) as Administrateur | null;
+    } as unknown as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>,
+      { fromSync: true, id: serverUser.id },
+    )) as Administrateur | null;
   }
   if (!saved) return { ok: false, error: 'Échec persistance locale' };
   const safe = stripHash(saved);
