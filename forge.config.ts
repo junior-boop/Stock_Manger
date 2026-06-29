@@ -17,6 +17,9 @@ const config: ForgeConfig = {
     name: 'Kataleya - Plateforme',
     executableName: 'kataleya-plateforme',
     icon: 'src/assets/app-icon',
+    osxSign: {
+      identity: '-',
+    },
     ignore: [
       /node_modules\/(?!(better-sqlite3|bindings|file-uri-to-path)\/)/,
     ]

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { syncClient, type SyncStatus } from '../context/sync_client';
 import { useAuth } from '../auth/authProvider';
 import logo from '../assets/Kataleya.png';
+import { SvgSpinners180RingWithBg } from '../libs/icons';
 
 const TABLE_LABELS: Record<string, string> = {
   administrateurs: 'Administrateurs',
@@ -21,6 +22,16 @@ const TABLE_LABELS: Record<string, string> = {
   entreprises: 'Entreprise',
 };
 
+const PHASE_LABELS: Record<string, string> = {
+  idle: 'Préparation…',
+  pull: 'Récupération des données',
+  push: 'Envoi des modifications',
+  bootstrap: 'Téléchargement initial',
+  images: 'Synchronisation des images',
+};
+
+const PHASE_STEPS = ['bootstrap', 'pull', 'push', 'images'];
+
 function getProgressPercent(status: SyncStatus): number {
   if (status.total === 0) return 0;
   return Math.min(Math.round((status.progress / status.total) * 100), 100);
@@ -29,6 +40,7 @@ function getProgressPercent(status: SyncStatus): number {
 export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
   const { user } = useAuth();
   const [status, setStatus] = useState<SyncStatus>(() => syncClient.getStatus());
+  const [timedOut, setTimedOut] = useState(false);
   const doneRef = useRef(false);
 
   useEffect(() => {
@@ -41,6 +53,19 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
     });
     return unsub;
   }, [onDone]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled && !syncClient.initialSyncDone) {
+        setTimedOut(true);
+      }
+    }, 60000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (doneRef.current) return;
@@ -57,8 +82,8 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
     }
 
     const role = user?.role ?? null;
-    syncClient.start()
-      .then(() => syncClient.bootstrapIfEmpty(role))
+    syncClient.bootstrapIfEmpty(role)
+      .then(() => syncClient.start())
       .catch(() => {
         if (!doneRef.current) {
           doneRef.current = true;
@@ -71,7 +96,7 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
   const isActive = status.running || status.phase !== 'idle';
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-36px)] w-full bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+    <div className="flex items-center justify-center min-h-[calc(100dvh-36px)] w-full bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-10 flex flex-col items-center gap-6">
         <img src={logo} alt="Kataleya" className="h-16 object-contain" />
 
@@ -80,8 +105,41 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
             Synchronisation en cours
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            {status.currentOperation || 'Préparation…'}
+            {timedOut
+              ? 'La synchronisation prend plus de temps que prévu…'
+              : status.currentOperation || PHASE_LABELS[status.phase] || 'Préparation…'}
           </p>
+        </div>
+
+        <div className="w-full flex flex-col gap-2">
+          {PHASE_STEPS.map((phase) => {
+            const phaseIdx = PHASE_STEPS.indexOf(phase);
+            const currentIdx = PHASE_STEPS.indexOf(status.phase);
+            const done = currentIdx > phaseIdx;
+            const active = status.phase === phase;
+
+            return (
+              <div key={phase} className="flex items-center gap-3 text-sm">
+                <div className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                  done
+                    ? 'bg-emerald-500 text-white'
+                    : active
+                    ? 'bg-blue-500 text-white animate-pulse'
+                    : 'bg-gray-100 text-gray-400'
+                }`}>
+                  {done ? '✓' : active ? '…' : phaseIdx + 1}
+                </div>
+                <span className={`${done ? 'text-emerald-600' : active ? 'text-blue-600 font-medium' : 'text-gray-400'}`}>
+                  {PHASE_LABELS[phase] || phase}
+                </span>
+                {(active || done) && status.currentTable && (
+                  <span className="text-xs text-gray-400 ml-auto">
+                    {TABLE_LABELS[status.currentTable] ?? status.currentTable.replace(/_/g, ' ')}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="w-full space-y-1">
@@ -108,17 +166,31 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
-        {!isActive && !status.running && status.phase === 'idle' && (
+        {!isActive && !status.running && status.phase === 'idle' && !timedOut && (
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
-              <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <SvgSpinners180RingWithBg className="h-4 w-4" />
             Connexion au serveur…
           </div>
         )}
 
-        {status.lastError && (
+        {timedOut && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg text-center">
+              La synchronisation est longue. Vous pouvez continuer, les données finiront de se charger en arrière-plan.
+            </div>
+            <button
+              onClick={() => {
+                doneRef.current = true;
+                onDone();
+              }}
+              className="h-10 px-6 bg-slate-800 text-white text-sm rounded-full font-medium hover:bg-slate-700 transition"
+            >
+              Continuer quand même
+            </button>
+          </div>
+        )}
+
+        {status.lastError && !timedOut && (
           <div className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg text-center">
             {status.lastError}
           </div>
