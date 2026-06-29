@@ -3,6 +3,8 @@ import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
+import { MakerDMG } from '@electron-forge/maker-dmg';
+import { PublisherGithub } from '@electron-forge/publisher-github';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
@@ -29,6 +31,17 @@ const config: ForgeConfig = {
     new MakerZIP({}, ['darwin', 'win32']),
     new MakerRpm({ options: { icon: 'src/assets/app-icon.png' } }),
     new MakerDeb({ options: { icon: 'src/assets/app-icon.png' } }),
+    new MakerDMG({ icon: 'src/assets/app-icon.icns' }),
+  ],
+  publishers: [
+    new PublisherGithub({
+      repository: {
+        owner: 'junior-boop',
+        name: 'Stock_Manger',
+      },
+      prerelease: false,
+      draft: false,
+    }),
   ],
   plugins: [
     new VitePlugin({

@@ -25,8 +25,8 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf-8")
 const version = pkg.version;
 const productName = pkg.productName || "Kataleya - Plateforme";
 
-function walk(dir, base = ""): { file: string; size: number }[] {
-  const results: { file: string; size: number }[] = [];
+function walk(dir, base = "") {
+  const results = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const e of entries) {
     const full = path.join(dir, e.name);

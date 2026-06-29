@@ -1,0 +1,43 @@
+name: Build Electron App
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # Permet de lancer le build manuellement depuis GitHub
+
+jobs:
+  build:
+    name: Build sur ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build and Publish the app
+        run: npx electron-forge publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Permet à Electron de savoir qu'il ne faut pas ouvrir de fenêtres pendant le build
+          CI: true
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kataleya-Builds-${{ matrix.os }}
+          # Les exécutables finis se trouvent dans out/make/
+          path: out/make/**/*

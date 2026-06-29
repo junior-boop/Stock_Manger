@@ -97,30 +97,23 @@ export class AutoUpdateService {
   }
 
   async checkForUpdates(): Promise<void> {
-    const cfg = readConfig(this.userDataPath);
-    if (!cfg.feedURL) return;
-
     this.status.checking = true;
     this.status.error = null;
     this.emit();
 
     try {
-      const base = cfg.feedURL.replace(/\/$/, "");
-      const res = await fetch(`${base}/latest.json`);
+      const res = await fetch(`https://api.github.com/repos/junior-boop/Stock_Manger/releases/latest`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const meta = (await res.json()) as {
-        version: string;
-        url: string;
-        releaseDate?: string;
-      };
+      const meta = (await res.json()) as { tag_name: string };
+      const version = (meta.tag_name || '').replace(/^v/, '');
 
       const current = app.getVersion();
-      const hasUpdate = this.compareVersions(meta.version, current) > 0;
+      const hasUpdate = this.compareVersions(version, current) > 0;
 
       if (hasUpdate) {
         this.status.available = true;
-        this.status.version = meta.version;
+        this.status.version = version;
       } else {
         this.status.available = false;
         this.status.version = null;
@@ -135,19 +128,22 @@ export class AutoUpdateService {
   }
 
   async downloadUpdate(): Promise<void> {
-    const cfg = readConfig(this.userDataPath);
-    if (!cfg.feedURL || !this.status.version) return;
+    if (!this.status.version) return;
 
     this.status.downloading = true;
     this.status.progress = 0;
     this.emit();
 
     try {
-      const base = cfg.feedURL.replace(/\/$/, "");
-      const metaRes = await fetch(`${base}/latest.json`);
-      const meta = (await metaRes.json()) as { url: string; version: string };
-      const downloadUrl = meta.url.startsWith("http") ? meta.url : `${base}/${meta.url}`;
+      const metaRes = await fetch(`https://api.github.com/repos/junior-boop/Stock_Manger/releases/latest`);
+      if (!metaRes.ok) throw new Error(`HTTP ${metaRes.status}`);
+      const meta = (await metaRes.json()) as { assets: { name: string; browser_download_url: string }[] };
+      
+      const ext = process.platform === 'win32' ? '.exe' : process.platform === 'darwin' ? '.dmg' : '.zip';
+      const asset = meta.assets.find(a => a.name.endsWith(ext));
+      if (!asset) throw new Error(`Aucun fichier d'installation trouvé pour ${ext}`);
 
+      const downloadUrl = asset.browser_download_url;
       const res = await fetch(downloadUrl);
       if (!res.ok) throw new Error(`download HTTP ${res.status}`);
 
@@ -170,8 +166,7 @@ export class AutoUpdateService {
         }
       }
 
-      const ext = path.extname(new URL(downloadUrl).pathname) || ".exe";
-      const filePath = path.join(this.downloadDir, `kataleya-update-${meta.version}${ext}`);
+      const filePath = path.join(this.downloadDir, `kataleya-update-${this.status.version}${ext}`);
       fs.writeFileSync(filePath, Buffer.concat(chunks));
 
       this.status.downloading = false;
@@ -180,7 +175,7 @@ export class AutoUpdateService {
       this.emit();
 
       for (const win of BrowserWindow.getAllWindows()) {
-        win.webContents.send("update:downloaded", { filePath, version: meta.version });
+        win.webContents.send("update:downloaded", { filePath, version: this.status.version });
       }
     } catch (e) {
       this.status.downloading = false;
@@ -190,10 +185,6 @@ export class AutoUpdateService {
   }
 
   quitAndInstall(): void {
-    const cfg = readConfig(this.userDataPath);
-    if (!cfg.feedURL) return;
-
-    const base = cfg.feedURL.replace(/\/$/, "");
     // Spawn the downloaded installer (Squirrel detects auto-update mode).
     // On Windows Squirrel, running the new .exe with --updated flag updates in place.
     const updates = fs.readdirSync(this.downloadDir)
@@ -208,8 +199,8 @@ export class AutoUpdateService {
         app.quit();
       });
     } else {
-      // Fallback : ouvrir le navigateur sur la page des releases du serveur
-      execFile(base, [], (err) => {
+      // Fallback : ouvrir le navigateur sur la page des releases
+      execFile("https://github.com/junior-boop/Stock_Manger/releases/latest", [], (err) => {
         if (err) console.error("[auto-update] open failed", err);
       });
     }
