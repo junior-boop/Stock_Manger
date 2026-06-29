@@ -6,6 +6,7 @@ import { MakerRpm } from '@electron-forge/maker-rpm';
 import { MakerDMG } from '@electron-forge/maker-dmg';
 import { PublisherGithub } from '@electron-forge/publisher-github';
 import { VitePlugin } from '@electron-forge/plugin-vite';
+import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
@@ -44,6 +45,7 @@ const config: ForgeConfig = {
     }),
   ],
   plugins: [
+    new AutoUnpackNativesPlugin({}),
     new VitePlugin({
       // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
       // If you are familiar with Vite configuration, it will look really familiar.
