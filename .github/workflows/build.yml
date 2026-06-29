@@ -32,10 +32,6 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Setup Python (for node-gyp)
-        if: runner.os == 'Windows'
-        run: npm config set python python3
-
       - name: Install dependencies
         run: npm install
 
