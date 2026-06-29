@@ -10,17 +10,17 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
-  
+
   packagerConfig: {
     asar: true,
     name: 'Kataleya - Plateforme',
     executableName: 'kataleya-plateforme',
     icon: 'src/assets/app-icon',
-    ignore : [
+    ignore: [
       /node_modules\/(?!(better-sqlite3|bindings|file-uri-to-path)\/)/,
     ]
   },
- rebuildConfig: {
+  rebuildConfig: {
     force: false,
   },
   makers: [

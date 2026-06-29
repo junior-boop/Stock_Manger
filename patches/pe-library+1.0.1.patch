@@ -1,0 +1,13 @@
+diff --git a/node_modules/pe-library/dist/NtExecutable.js b/node_modules/pe-library/dist/NtExecutable.js
+index d3d8513..2e17ffc 100644
+--- a/node_modules/pe-library/dist/NtExecutable.js
++++ b/node_modules/pe-library/dist/NtExecutable.js
+@@ -17,7 +17,7 @@ var NtExecutable = /** @class */ (function () {
+         this._dda = nh.optionalHeaderDataDirectory;
+         _sections.sort(function (a, b) {
+             var ra = a.info.pointerToRawData;
+-            var rb = a.info.pointerToRawData;
++            var rb = b.info.pointerToRawData;
+             if (ra !== rb) {
+                 return ra - rb;
+             }
