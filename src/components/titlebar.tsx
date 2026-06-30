@@ -140,6 +140,23 @@ function SyncIndicator() {
                                 {status.lastError}
                             </div>
                         )}
+
+                        <div className="pt-2 border-t border-slate-100 mt-2">
+                            <button
+                                onClick={() => { syncClient.requestSync(); setExpanded(false); }}
+                                disabled={status.running}
+                                className="w-full h-8 flex items-center justify-center gap-1.5 text-xs font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {status.running ? (
+                                    <SvgSpinners180Ring className="h-3.5 w-3.5" />
+                                ) : (
+                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+                                    </svg>
+                                )}
+                                {status.running ? 'Synchronisation…' : 'Sync now'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
