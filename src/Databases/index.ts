@@ -24,19 +24,29 @@ import type {
     CustomField,
 } from "./db"
 
+import { app } from 'electron';
+import path from 'node:path';
 import { v4 as uuidv4 } from "uuid";
 import Database from "better-sqlite3";
 import { runMigrations } from "./migrations";
 
+const DB_FILENAME = 'notes.sqlite';
+let _dbPath: string | null = null;
+export function getDbPath(): string {
+  if (!_dbPath) {
+    _dbPath = path.join(app.getPath('userData'), DB_FILENAME);
+  }
+  return _dbPath;
+}
 
 export function checkDatabase() {
-  const db = new Database("./notes.sqlite");
+  const db = new Database(getDbPath());
   const stml = db.prepare("SELECT 1+1 AS result");
   const result = stml.run();
   return result;
 }
 
-export const orm = new SimpleORM("./notes.sqlite");
+export const orm = new SimpleORM(getDbPath());
 const db = new ModelFactory(orm);
 
 

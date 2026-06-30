@@ -133,14 +133,6 @@ if (started) {
   app.quit();
 }
 
-// Initialize database
-checkDatabase();
-initializeTables().then(() => {
-  console.log('Tables de base de données créées avec succès');
-}).catch(err => {
-  console.error('Erreur lors de l\'initialisation de la base de données:', err);
-});
-
 // ======================== IPC HANDLERS - AUTH ========================
 ipcMain.handle('auth:isSetupDone', async () => isSetupDone());
 ipcMain.handle('auth:setup', async (_event, data) => setupFirstAdmin(data));
@@ -930,7 +922,12 @@ ipcMain.handle('articles:generateReference', async (event, collectionId: string)
   }
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  checkDatabase();
+  await initializeTables().catch(err => {
+    console.error('Erreur lors de l\'initialisation de la base de données:', err);
+  });
+
   session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
     cb({
       responseHeaders: {
@@ -946,6 +943,8 @@ app.whenReady().then(() => {
       },
     });
   });
+
+  createWindow();
 });
 
 // ======================== AUTO-UPDATE ========================
@@ -1023,11 +1022,6 @@ const createWindow = () => {
   // Open the DevTools (dev only).
   if (!app.isPackaged) mainWindow.webContents.openDevTools();
 };
-
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', createWindow);
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
