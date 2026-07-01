@@ -8,14 +8,16 @@ function attach(el: Element) {
     if (initialized.has(el)) return;
     if (!(el instanceof HTMLElement)) return;
     initialized.add(el);
-    OverlayScrollbars(el, {
-        scrollbars: {
-            theme: 'os-theme-kataleya',
-            autoHide: 'leave',
-            autoHideDelay: 600,
-            visibility: 'auto',
-        },
-        overflow: { x: 'scroll', y: 'scroll' },
+    requestAnimationFrame(() => {
+        OverlayScrollbars(el, {
+            scrollbars: {
+                theme: 'os-theme-kataleya',
+                autoHide: 'leave',
+                autoHideDelay: 600,
+                visibility: 'auto',
+            },
+            overflow: { x: 'scroll', y: 'scroll' },
+        });
     });
 }
 

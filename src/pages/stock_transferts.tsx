@@ -359,7 +359,7 @@ export default function StockTransfertsPage() {
                                         <FluentSearch32Filled className="h-4 w-4 text-gray-500" />
                                     </div>
                                     {(articleQuery || articlesFiltered.length > 0) && (
-                                        <div data-os-scroll className="mt-1 max-h-120 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                                        <div className="mt-1 max-h-120 overflow-y-auto rounded-lg border border-slate-200 bg-white">
                                             {articlesFiltered.length === 0 ? (
                                                 <div className="text-xs text-gray-400 px-3 py-2">Aucun article</div>
                                             ) : (

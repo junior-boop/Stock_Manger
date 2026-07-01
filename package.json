@@ -12,6 +12,9 @@
     "publish": "cross-env NODE_OPTIONS=--max-old-space-size=2048 electron-forge publish",
     "postmake": "node scripts/generate-latest-json.mjs && node scripts/package-targz.mjs",
     "postinstall": "patch-package",
+    "test": "vitest run --config tests/vitest.config.ts",
+    "test:watch": "vitest --config tests/vitest.config.ts",
+    "test:coverage": "vitest run --coverage --config tests/vitest.config.ts",
     "lint": "eslint --ext .ts,.tsx .",
     "build:css": "tailwindcss -i src/index.css -o ./output.css",
     "server": "cd .server-cache && npm run dev",
@@ -55,6 +58,7 @@
     "png-to-ico": "^3.0.1",
     "typescript": "~4.5.4",
     "vite": "^5.4.21",
+    "vitest": "^1.6.0",
     "wait-on": "^9.0.10"
   },
   "dependencies": {

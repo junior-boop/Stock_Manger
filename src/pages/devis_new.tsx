@@ -135,7 +135,7 @@ export default function DevisNewPage() {
                 </button>
             </div>
 
-            <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
                 <DevisForm value={value} onChange={setValue} clients={clients} articles={articles} />
             </div>

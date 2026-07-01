@@ -2101,15 +2101,27 @@ export function batchApplyRemoteEntries(entries: RemoteSyncEntry[]): BatchResult
     }
 
     try {
+      // BUG-001 fix : ne PAS écraser les lignes dirty localement.
+      // Si une ligne est dirty, on saute l'upsert/delete métier mais on
+      // enregistre quand même la version serveur dans sync_state. Le push
+      // enverra les données locales au prochain cycle, et l'arbitrage LWW
+      // côté serveur tranchera le conflit.
+      const isDirty = (id: string): boolean => {
+        const state = syncState.get(tableName, id);
+        return state ? state.dirty === 1 : false;
+      };
+
       const deletes = tableEntries.filter((e) => e.deleted);
       const upserts = tableEntries.filter((e) => !e.deleted && e.data);
 
       for (const entry of deletes) {
+        if (isDirty(entry.id)) continue;
         try { model.delete(entry.id); } catch { /* idempotent */ }
       }
 
-      if (upserts.length > 0) {
-        const payloads = upserts.map((e) =>
+      const safeUpserts = upserts.filter((e) => !isDirty(e.id));
+      if (safeUpserts.length > 0) {
+        const payloads = safeUpserts.map((e) =>
           normalizeForSqlite({ ...e.data!, id: e.id }),
         );
         model.batchUpsert(payloads);

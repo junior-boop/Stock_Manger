@@ -119,7 +119,8 @@ function parseJsonFields(table: SyncableTable, row: any): any {
 
 export class SyncClient {
     private timer: number | null = null;
-    private sse: EventSource | null = null;
+    private ws: WebSocket | null = null;
+    private wsReconnectTimer: number | null = null;
     private debounceTimer: number | null = null;
     private pendingSync: Promise<void> | null = null;
     // Dernier `maxVersion` observé côté serveur lors d'un pull — utilisé pour
@@ -202,7 +203,7 @@ export class SyncClient {
         this.status.authError = false;
         this.emit();
         await this.synchronize();
-        this.openSSE();
+        this.openWS();
         this.stopTimer();
         this.timer = window.setInterval(() => {
             void this.synchronize();
@@ -211,9 +212,13 @@ export class SyncClient {
 
     stop() {
         this.stopTimer();
-        if (this.sse) {
-            this.sse.close();
-            this.sse = null;
+        if (this.wsReconnectTimer !== null) {
+            window.clearTimeout(this.wsReconnectTimer);
+            this.wsReconnectTimer = null;
+        }
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
         }
         this.status.enabled = false;
         this.emit();
@@ -902,8 +907,9 @@ export class SyncClient {
         }
 
         if (row.deleted === 1) {
-            const res = await this.authedFetch(`/${table}/${id}`, {
+            const res = await this.authedFetch(`/api/sync/${table}/${id}`, {
                 method: "DELETE",
+                body: JSON.stringify({ _version: row.version }),
             });
             if (!res.ok && res.status !== 404) {
                 const body = await res.text().catch(() => "");
@@ -927,19 +933,6 @@ export class SyncClient {
             return "client";
         }
 
-        const nonNullKeys = Object.entries(fresh).filter(
-            ([, v]) =>
-                v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0),
-        );
-        if (nonNullKeys.length < 3) {
-            console.warn(
-                `${TAG} push ${table}/${id} ignoré (ligne locale orpheline)`,
-                fresh,
-            );
-            await window.syncApi.syncState.markClean(table, id, row.version);
-            return "client";
-        }
-
         const normalized = this.normalizeImagesForSync(table, fresh);
         for (const name of this.extractImageNames(table, fresh)) {
             this.enqueueImage("upload", name);
@@ -950,7 +943,7 @@ export class SyncClient {
             _version: row.version,
             _updatedAt: (fresh as any)?.updatedAt,
         };
-        const res = await this.authedFetch(`/${table}/${id}`, {
+        const res = await this.authedFetch(`/api/sync/${table}/${id}`, {
             method: "PUT",
             body: JSON.stringify(payload),
         });
@@ -1067,21 +1060,25 @@ export class SyncClient {
         }
     }
 
-    private openSSE() {
-        if (this.sse) {
-            this.sse.close();
-            this.sse = null;
+    private openWS() {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+        if (this.wsReconnectTimer !== null) {
+            window.clearTimeout(this.wsReconnectTimer);
+            this.wsReconnectTimer = null;
         }
         void window.syncApi.getConfig().then((cfg) => {
             if (!cfg.serverUrl || !cfg.token) return;
-            const url = `${cfg.serverUrl.replace(/\/$/, "")}/api/sync/events?clientId=${encodeURIComponent(cfg.clientId)}&token=${encodeURIComponent(cfg.token)}`;
-            const es = new EventSource(url);
-            es.onmessage = (ev) => {
+            const serverUrl = cfg.serverUrl.replace(/\/$/, "");
+            const wsUrl = serverUrl.replace(/^http/, "ws");
+            const url = `${wsUrl}/api/sync/ws?token=${encodeURIComponent(cfg.token)}`;
+            const ws = new WebSocket(url);
+            ws.onmessage = (ev) => {
                 try {
                     const data = JSON.parse(ev.data);
-                    // Phase 4.4 — SSE = simple trigger : on déclenche un pull
-                    // debouncé plutôt que d'appliquer directement (sync_state
-                    // reste la seule source de vérité).
+                    if (data?.type === "heartbeat") return;
                     if (data?.type === "journal_update") {
                         void this.requestSync();
                     }
@@ -1089,12 +1086,22 @@ export class SyncClient {
                     /* ignore */
                 }
             };
-            es.onerror = () => {
-                es.close();
-                this.sse = null;
-                // Reconnexion sera tentée au prochain tick
+            ws.onclose = () => {
+                this.ws = null;
+                if (this.status.enabled) {
+                    this.wsReconnectTimer = window.setTimeout(
+                        () => this.openWS(),
+                        3000,
+                    );
+                }
             };
-            this.sse = es;
+            ws.onerror = () => {
+                ws.close();
+            };
+            ws.onopen = () => {
+                console.info(`${TAG} WebSocket connecté`);
+            };
+            this.ws = ws;
         });
     }
 }
