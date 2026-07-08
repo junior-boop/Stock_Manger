@@ -92,7 +92,7 @@ function renderLigneRow(l: LigneDocument, showTVA: boolean): string {
             </td>
             <td class="center">${l.quantite}</td>
             <td class="center">${formatFCFA(l.prixUnitaireHT)}</td>
-            <td class="center">${l.remise ? l.remise + '%' : '—'}</td>
+            <td class="center">${l.remise ? l.remise : '—'}</td>
             ${showTVA ? `<td class="center">${l.tauxTVA}%</td>` : ''}
             <td class="right strong">${formatFCFA(l.montantTotalTTC)}</td>
         </tr>
@@ -106,7 +106,7 @@ function renderLignesTable(lignes: LigneDocument[], showTVA: boolean): string {
                 <th class="designation">Désignation</th>
                 <th class="center" style = "text-align: center; width : 7.5%;">Qté</th>
                 <th class="center" style = "text-align: center;">P.U. HT</th>
-                <th class="center" style = "text-align: center; width : 7.5%">Remise</th>
+                <th class="center" style = "text-align: center; width : 7.5%">Remise (%)</th>
                 ${showTVA ? `<th class="center" style = "text-align: center; width: 5%">TVA</th>` : ''}
                 <th class="right" style = "text-align: right; width : 10%;">Total TTC</th>
             </tr>
@@ -169,7 +169,7 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(COMPANY.nom)} | ${COMPANY.telephone ? ` | ${esc(COMPANY.telephone)}` : ''}${` | ${COMPANY.matricule}`}</title>
+<title>${esc(COMPANY.nom)} | ${COMPANY.telephone ? `${esc(COMPANY.telephone)}` : ''}${` | ${COMPANY.matricule}`}</title>
 <style>
     @page { margin: 10mm 10mm 10mm 10mm; }
 

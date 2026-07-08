@@ -675,7 +675,8 @@ function EntrepriseSection() {
     const fileRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        window.db.entreprises.get().then((info) => {
+        window.db.entreprises.getById().then((info) => {
+            console.log('Entreprise info loaded:', info);
             setForm({ ...EMPTY_ENTREPRISE, ...info });
         }).catch(() => undefined).finally(() => setLoading(false));
     }, []);
@@ -940,15 +941,17 @@ function NumerotationSection() {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        window.db.entreprises.get().then((info) => {
-            setForm({
-                devisPrefix: info.devisPrefix || EMPTY_NUMEROTATION.devisPrefix,
-                facturePrefix: info.facturePrefix || EMPTY_NUMEROTATION.facturePrefix,
-                numeroFormat: info.numeroFormat || EMPTY_NUMEROTATION.numeroFormat,
-                tvaDefault: typeof info.tvaDefault === 'number' ? info.tvaDefault : EMPTY_NUMEROTATION.tvaDefault,
-                devise: info.devise || EMPTY_NUMEROTATION.devise,
-                afficherTVA: typeof info.afficherTVA === 'boolean' ? info.afficherTVA : EMPTY_NUMEROTATION.afficherTVA,
-            });
+        window.db.entreprises.getById().then((info) => {
+            if (info) {
+                setForm({
+                    devisPrefix: info.devisPrefix || EMPTY_NUMEROTATION.devisPrefix,
+                    facturePrefix: info.facturePrefix || EMPTY_NUMEROTATION.facturePrefix,
+                    numeroFormat: info.numeroFormat || EMPTY_NUMEROTATION.numeroFormat,
+                    tvaDefault: typeof info.tvaDefault === 'number' ? info.tvaDefault : EMPTY_NUMEROTATION.tvaDefault,
+                    devise: info.devise || EMPTY_NUMEROTATION.devise,
+                    afficherTVA: typeof info.afficherTVA === 'boolean' ? info.afficherTVA : EMPTY_NUMEROTATION.afficherTVA,
+                });
+            }
         }).catch(() => undefined).finally(() => setLoading(false));
     }, []);
 

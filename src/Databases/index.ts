@@ -1658,9 +1658,9 @@ function parseEntreprise(row: any): Entreprise | null {
   };
 }
 
-export function getEntreprise(): Entreprise | null {
+export async function getEntreprise(): Promise<Entreprise | null> {
   try {
-    const row = Entreprises.findById('default');
+    const row = await Entreprises.findById('default');
     return parseEntreprise(row);
   } catch (e) {
     console.error(e);
@@ -1668,7 +1668,7 @@ export function getEntreprise(): Entreprise | null {
   }
 }
 
-export function updateEntreprise(data: Partial<Omit<Entreprise, 'id'>>): Entreprise | null {
+export async function updateEntreprise(data: Partial<Omit<Entreprise, 'id'>>): Promise<Entreprise | null> {
   try {
     const updateData: any = { ...data };
     if (data.customFields !== undefined) {
@@ -1680,7 +1680,24 @@ export function updateEntreprise(data: Partial<Omit<Entreprise, 'id'>>): Entrepr
     if (data.afficherTVA !== undefined) {
       updateData.afficherTVA = data.afficherTVA ? 1 : 0;
     }
-    Entreprises.update('default', updateData);
+
+    const checkData = await Entreprises.findById("default")
+
+    if(checkData === null) {
+      await Entreprises.create({
+      id: 'default',
+      devisPrefix: 'DEV',
+      facturePrefix: 'FAC',
+      numeroFormat: 'PREFIX-YYYY-NNNN',
+      tvaDefault: 19.25,
+      devise: 'FCFA',
+      ...updateData
+    } as any)
+
+    return getEntreprise();
+    }
+
+    await Entreprises.update('default', updateData);
     syncState.markDirty('entreprises', 'default');
     return getEntreprise();
   } catch (e) {

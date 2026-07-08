@@ -556,12 +556,12 @@ function LignesBlock({ lignes, actions }: { lignes: LigneDocument[]; actions: Li
             <table className="w-full text-sm">
                 <thead className="text-xs uppercase text-gray-400">
                     <tr>
-                        <th className="text-left pb-2 font-medium w-[40%]">Désignation</th>
+                        <th className="text-left pb-2 font-medium w-[50%]">Désignation</th>
                         <th className="text-center pb-2 font-medium w-20">Qté</th>
                         <th className="text-center pb-2 font-medium w-28">P.U. HT</th>
                         {afficherTVA && <th className="text-center pb-2 font-medium w-20">TVA %</th>}
                         <th className="text-center pb-2 font-medium w-20">Remise %</th>
-                        <th className="text-right pb-2 font-medium w-32">Total TTC</th>
+                        <th className="text-right pb-2 font-medium w-20">Total TTC</th>
                         {!readOnly && <th className="w-8"></th>}
                     </tr>
                 </thead>

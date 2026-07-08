@@ -647,19 +647,17 @@ ipcMain.handle('entreprises:get', async () => {
 });
 
 // ======================== IPC HANDLERS - ENTREPRISES (SYNC) ========================
-ipcMain.handle('entreprises:getById', async (_event, id: string) => {
-  const row = getEntreprise();
-  if (row && row.id === id) return row;
+ipcMain.handle('entreprises:getById', async (_event) => {
+  const row = await getEntreprise();
+  if (row) return row;
   return null;
 });
-ipcMain.handle('entreprises:getAll', async () => {
-  const row = getEntreprise();
-  return row ? [row] : [];
-});
+
 
 ipcMain.handle('entreprises:update', async (_event, data) => {
   try {
-    const row = updateEntreprise(data);
+    const row = await updateEntreprise(data);
+    console.log("[main.ts] - entreprises:update", data)
     if (fs.existsSync(companyInfoPath)) {
       fs.unlinkSync(companyInfoPath);
     }

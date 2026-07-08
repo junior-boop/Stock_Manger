@@ -1008,7 +1008,7 @@ export class SyncClient {
         }
 
         if (row.deleted === 1) {
-            const res = await this.authedFetch(`/api/sync/${table}/${id}`, {
+            const res = await this.authedFetch(`/${table}/${id}`, {
                 method: "DELETE",
                 body: JSON.stringify({ _version: row.version }),
             });
@@ -1044,7 +1044,7 @@ export class SyncClient {
             _version: row.version,
             _updatedAt: (fresh as any)?.updatedAt,
         };
-        const res = await this.authedFetch(`/api/sync/${table}/${id}`, {
+        const res = await this.authedFetch(`/${table}/${id}`, {
             method: "PUT",
             body: JSON.stringify(payload),
         });

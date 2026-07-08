@@ -123,7 +123,8 @@ export default function ProductPage() {
                                     placeholder={`Rechercher dans ${sousCollectionName ?? name?.nom ?? "cette collection"}`}
                                     className="outline-none text-base flex-1 bg-transparent"
                                 />
-                                <FluentSearch32Filled className="w-7 h-7" />
+
+                                <FluentSearch32Filled className="w-5 h-5" />
                             </div>
                         </div>
                         <button onClick={handleOpenSousCollection} className="px-4 py-2 bg-blue-800 text-white  rounded-full min-w-[175px] flex items-center justify-center" disabled={isLoading}>

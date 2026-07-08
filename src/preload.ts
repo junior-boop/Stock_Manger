@@ -3,6 +3,7 @@
 
 
 import { contextBridge, ipcRenderer } from 'electron';
+import { Entreprise } from './Databases/db';
 
 
 // ======================== CLIENTS ========================
@@ -202,7 +203,7 @@ const inventairesApi = {
 
 // ======================== ENTREPRISES ========================
 const entreprisesApi = {
-  getById: (id: string) => ipcRenderer.invoke('entreprises:getById', id),
+  getById: () : Promise<Entreprise | null> => ipcRenderer.invoke('entreprises:getById'),
   getAll: () => ipcRenderer.invoke('entreprises:getAll'),
   get: (): Promise<CompanyInfo> => ipcRenderer.invoke('entreprises:get'),
   update: (data: Partial<CompanyInfo>): Promise<CompanyInfo> => ipcRenderer.invoke('entreprises:update', data),

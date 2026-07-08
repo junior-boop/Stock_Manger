@@ -8,6 +8,8 @@
 // (Client, Article, Devis, Facture, etc.) importés depuis un fichier partagé
 // entre main et renderer si tu veux du typage bout-en-bout.
 
+import { Entreprise } from "./Databases/db";
+
 export {}; // force ce fichier à être un module, requis pour `declare global`
 
 // ======================== TYPES PARTAGÉS ========================
@@ -202,8 +204,7 @@ interface DbApi {
     exportCurrentBackup: () => Promise<string | null>;
   };
   entreprises: {
-    getById: (id: string) => Promise<any | null>;
-    getAll: () => Promise<any[]>;
+    getById: () => Promise<Entreprise | null>;
     get: () => Promise<CompanyInfo>;
     update: (data: Partial<CompanyInfo>) => Promise<CompanyInfo>;
   };
