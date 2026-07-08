@@ -365,8 +365,11 @@ export class SyncClient {
     // par table. Plus de restriction par rôle : le serveur arbitre, le rôle ne
     // sert plus de gate de bootstrap.
     //
-    // Le paramètre `role` est conservé pour compat des callers existants (auth
-    // provider) mais n'est plus utilisé pour gater l'appel.
+    // Flux amélioré :
+    //   1. Récupère la taille totale de chaque table via /admin/status
+    //   2. Calcule le total général pour la barre de progression
+    //   3. Pull chaque table par pages de 500, sans limite d'itérations
+    //   4. Affiche la progression par table : "Table X : téléchargement N/M éléments"
     async bootstrapIfEmpty(_role?: string | null | undefined) {
         const TAG = "[sync:bootstrap]";
         if (!this.status.enabled) {
@@ -387,17 +390,48 @@ export class SyncClient {
 
         const tables = await window.syncApi.syncableTables();
         console.info(`${TAG} démarrage bootstrap — ${tables.length} tables`);
+
+        // Récupération des tailles totales par table depuis le serveur
+        let serverCounts: Record<string, number> = {};
+        try {
+            const res = await this.authedFetch("/admin/status", { method: "GET" });
+            if (res.ok) {
+                const data = (await res.json()) as { counts: Record<string, number> };
+                serverCounts = data.counts || {};
+            }
+        } catch (e) {
+            console.warn(`${TAG} impossible de récupérer les compteurs serveur`, e);
+        }
+
+        // Calcul du total général
+        let grandTotal = 0;
+        for (const table of tables) {
+            grandTotal += serverCounts[table] ?? 0;
+        }
+        if (grandTotal === 0) grandTotal = 1;
+
         this.status.running = true;
-        this.setPhase('bootstrap', 'Récupération initiale des données…', '', 0, tables.length);
+        this.setPhase('bootstrap', 'Récupération initiale des données…', '', 0, grandTotal);
 
         let totalApplied = 0;
         let totalFailed = 0;
-        for (let t = 0; t < tables.length; t++) {
-            const table = tables[t];
-            const tableLabel = table.replace(/_/g, ' ');
-            this.setPhase('bootstrap', `Récupération ${tableLabel}…`, table, t + 1, tables.length);
+        let pulledCount = 0;
+        const MAX_VERIFY_ATTEMPTS = 5;
 
-            // Étape 1 : puller TOUTES les pages du serveur en mémoire d'abord
+        for (const table of tables) {
+            const tableLabel = table.replace(/_/g, ' ');
+            const initialTableTotal = serverCounts[table] ?? 0;
+
+            this.setPhase(
+                'bootstrap',
+                initialTableTotal > 0
+                    ? `Téléchargement ${tableLabel} (0/${initialTableTotal})`
+                    : `Téléchargement ${tableLabel}…`,
+                table,
+                pulledCount,
+                grandTotal,
+            );
+
             const allItems: Array<{
                 id: string;
                 version: number;
@@ -406,13 +440,18 @@ export class SyncClient {
                 deleted: boolean;
                 data: Record<string, unknown> | null;
             }> = [];
-            let since = 0;
-            let iter = 0;
-            const MAX_ITER = 50;
+            let sinceVersion = 0;
+            let sinceId = '';
+            let pageCount = 0;
+            let tablePullCount = 0;
             let pullFailed = false;
-            while (iter++ < MAX_ITER) {
+            let verifyAttempts = 0;
+            let currentTableTotal = initialTableTotal;
+
+            while (true) {
+                pageCount++;
                 const res = await this.authedFetch(
-                    `/sync-state/full?table=${encodeURIComponent(table)}&since=${since}&limit=500`,
+                    `/sync-state/full?table=${encodeURIComponent(table)}&sinceVersion=${sinceVersion}&sinceId=${encodeURIComponent(sinceId)}&limit=500`,
                     { method: "GET" },
                 );
                 if (!res.ok) {
@@ -431,34 +470,82 @@ export class SyncClient {
                         data: Record<string, unknown> | null;
                     }>;
                     maxVersion: number;
+                    maxId?: string;
                     hasMore: boolean;
                     serverTime: string;
                 };
                 if (data.items.length === 0) break;
+
                 for (const item of data.items) {
                     allItems.push({
                         ...item,
                         data: item.data ? parseJsonFields(table as SyncableTable, item.data) : null,
                     });
                 }
-                since = data.maxVersion;
-                console.info(
-                    `${TAG} ${table} → ${data.items.length} row(s), since→${since}, hasMore=${data.hasMore}`,
+                tablePullCount += data.items.length;
+                pulledCount += data.items.length;
+                sinceVersion = data.maxVersion;
+                sinceId = data.maxId || '';
+
+                // Mise à jour progression : items réellement téléchargés / total attendu
+                const displayTotal = Math.max(currentTableTotal, tablePullCount);
+                this.setPhase(
+                    'bootstrap',
+                    currentTableTotal > 0
+                        ? `Téléchargement ${tableLabel} (${Math.min(tablePullCount, displayTotal)}/${displayTotal})`
+                        : `Téléchargement ${tableLabel} (${tablePullCount})`,
+                    table,
+                    pulledCount,
+                    grandTotal,
                 );
-                if (!data.hasMore) break;
-            }
-            if (iter >= MAX_ITER) {
-                console.warn(`${TAG} ${table} — atteint MAX_ITER, pull potentiellement incomplet`);
+
+                console.info(
+                    `${TAG} ${table} → page ${pageCount}, ${data.items.length} row(s), total ${tablePullCount}, cursor=(${sinceVersion},${sinceId}), hasMore=${data.hasMore}`,
+                );
+
+                if (data.hasMore) {
+                    if (pageCount > 100_000) {
+                        console.error(`${TAG} ${table} — dépassé 100 000 pages, arrêt`);
+                        pullFailed = true;
+                        break;
+                    }
+                    continue;
+                }
+
+                // ── Vérification de complétude ──────────────────────────
+                // hasMore = false : le serveur n'a plus d'items à renvoyer
+                // pour ce curseur. On vérifie auprès de /admin/status que
+                // le compte total correspond bien à ce qu'on a téléchargé.
+                // Si le serveur a reçu de nouvelles données entre-temps,
+                // on reprend le pull depuis le dernier curseur connu.
+                if (currentTableTotal > 0 && tablePullCount >= currentTableTotal) break;
+                if (verifyAttempts >= MAX_VERIFY_ATTEMPTS) {
+                    console.warn(`${TAG} ${table} — vérification échouée après ${MAX_VERIFY_ATTEMPTS} tentatives, on continue`);
+                    break;
+                }
+
+                verifyAttempts++;
+                console.info(`${TAG} ${table} — vérification (tentative ${verifyAttempts}/${MAX_VERIFY_ATTEMPTS}) : ${tablePullCount} téléchargés, ${currentTableTotal} attendus`);
+                try {
+                    const res = await this.authedFetch("/admin/status", { method: "GET" });
+                    if (res.ok) {
+                        const data = (await res.json()) as { counts: Record<string, number> };
+                        currentTableTotal = data.counts?.[table] ?? 0;
+                        if (tablePullCount >= currentTableTotal) break; // complet
+                        console.info(`${TAG} ${table} — nouveaux items détectés (${currentTableTotal}), reprise du pull`);
+                    }
+                } catch {
+                    break; // pas de vérification → on accepte ce qu'on a
+                }
+                // continue la boucle → prochaine page
             }
 
-            // Étape 2 : si le pull a réussi, alors seulement on nettoie les
-            // données locales seedées et on applique le snapshot serveur.
-            // Si le pull a échoué, on conserve les données locales intactes.
             if (pullFailed) {
                 console.warn(`${TAG} bootstrap pull ${table} échoué — données locales conservées`);
                 continue;
             }
 
+            // Suppression des données locales seedées
             try {
                 const dbKey = (TABLE_TO_DB as Record<string, string>)[table];
                 const dbApi = (window.db as any)?.[dbKey];
@@ -472,8 +559,7 @@ export class SyncClient {
                 console.warn(`${TAG} clear ${table} échec`, e);
             }
 
-            // Application batch : tous les items de la table en une seule
-            // transaction SQLite via le main process.
+            // Application batch
             const liveItems = allItems.filter((i) => !i.deleted && i.data);
             const deletedItems = allItems.filter((i) => i.deleted);
             const batchEntries: Array<{
@@ -500,7 +586,7 @@ export class SyncClient {
             totalApplied += batchResult.ok;
             totalFailed += batchResult.failed;
 
-            // Files images articles (toujours en individual, car hors SQLite)
+            // Images articles
             for (const item of liveItems) {
                 if (table === "articles") {
                     const raw = (item.data as any)?.images;
@@ -515,6 +601,7 @@ export class SyncClient {
                 }
             }
         }
+
         console.info(`${TAG} bootstrap terminé`, {
             applied: totalApplied,
             failed: totalFailed,
@@ -682,10 +769,17 @@ export class SyncClient {
         let iterations = 0;
         const MAX_ITER = 50;
 
+        // Curseur tuple (version, table_name, element_id) pour éviter
+        // les trous de pagination quand plusieurs items ont la même version.
+        // Première itération : depuis le maxVersion local. Itérations suivantes :
+        // depuis le curseur renvoyé par le serveur.
+        let sinceVersion = await window.syncApi.syncState.maxVersion();
+        let sinceTable = '';
+        let sinceId = '';
+
         while (iterations++ < MAX_ITER) {
-            const since = await window.syncApi.syncState.maxVersion();
             const res = await this.authedFetch(
-                `/sync-state?since=${since}&limit=1000`,
+                `/sync-state?sinceVersion=${sinceVersion}&sinceTable=${encodeURIComponent(sinceTable)}&sinceId=${encodeURIComponent(sinceId)}&limit=1000`,
                 { method: "GET" },
             );
             if (!res.ok) {
@@ -703,17 +797,24 @@ export class SyncClient {
                     deleted: boolean;
                 }>;
                 maxVersion: number;
+                maxTable?: string;
+                maxId?: string;
                 hasMore: boolean;
                 serverTime: string;
             };
             console.info(
-                `${TAG} pull GET /sync-state since=${since} → ${data.items.length} entrée(s)`,
-                { hasMore: data.hasMore, maxVersion: data.maxVersion },
+                `${TAG} pull GET /sync-state cursor=(${sinceVersion},${sinceTable},${sinceId}) → ${data.items.length} entrée(s)`,
+                { hasMore: data.hasMore, nextCursor: `(${data.maxVersion},${data.maxTable},${data.maxId})` },
             );
             if (data.maxVersion > this.lastServerMaxVersion) {
                 this.lastServerMaxVersion = data.maxVersion;
             }
             if (data.items.length === 0) break;
+
+            // Mise à jour du curseur pour la page suivante
+            sinceVersion = data.maxVersion;
+            sinceTable = data.maxTable || '';
+            sinceId = data.maxId || '';
 
             // Étape 1 : fetch les données pour les items non-deleted (en parallèle)
             const fetchTasks = data.items.map(async (entry) => {

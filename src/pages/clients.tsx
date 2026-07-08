@@ -4,6 +4,7 @@ import { useDatabase } from '../databaseProvider';
 import { Client, Facture } from '../Databases/db.d';
 import { FluentArrowUp32Filled, FluentAlert32Filled, FluentChevronRight32Filled } from '../libs/icons';
 import { formatFCFA } from '../libs/format';
+import ScrollArea from '../components/scroll_area';
 
 export default function ClientsPage() {
     const { clients, factures } = useDatabase();
@@ -54,7 +55,7 @@ export default function ClientsPage() {
     const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
     return (
-        <div data-os-scroll className="h-full w-full overflow-y-auto bg-slate-50">
+        <ScrollArea className="h-full w-full overflow-y-auto bg-slate-50">
             <div className="px-10 py-10 flex flex-col gap-8">
                 <div>
                     <h1 className="text-4xl font-light">Clients</h1>
@@ -109,7 +110,7 @@ export default function ClientsPage() {
                     />
                 </div>
             </div>
-        </div>
+        </ScrollArea>
     );
 }
 

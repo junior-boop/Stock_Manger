@@ -30,7 +30,7 @@ export default function CompanySetupPage({ onDone }: { onDone: () => void }) {
         }
         setSaving(true);
         try {
-            const next = await window.companyApi.set({ nom: nom.trim(), logoDataUrl, setupDone: true });
+            const next = await window.db.entreprises.update({ nom: nom.trim(), logoDataUrl, setupDone: true });
             setDevisCompanyInfo(next);
             setFactureCompanyInfo(next);
             window.dispatchEvent(new Event('company:changed'));

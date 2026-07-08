@@ -4,6 +4,7 @@ import { useAuth } from '../auth/authProvider';
 import { useAlerts } from '../components/alerts';
 import { SvgSpinners180Ring, FluentSearch32Filled, FluentCloudArrowUp32Regular } from '../libs/icons';
 import ExcelParserWorker from '../workers/excel_parser.worker.ts?worker';
+import ScrollArea from '../components/scroll_area';
 
 type Inventaire = {
     id: string;
@@ -269,7 +270,7 @@ export default function InventairePage({ inventaire, onDone }: { inventaire: Inv
                 </button>
             </div>
 
-            <div data-os-scroll className="flex-1 overflow-y-auto px-8 py-4">
+            <ScrollArea className="flex-1 overflow-y-auto px-8 py-4">
                 <table className="w-full text-sm bg-white rounded-xl border border-slate-200">
                     <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                         <tr>
@@ -311,7 +312,7 @@ export default function InventairePage({ inventaire, onDone }: { inventaire: Inv
                         )}
                     </tbody>
                 </table>
-            </div>
+            </ScrollArea>
 
             <div className="bg-white border-t border-slate-200 px-8 py-4 flex items-center justify-between">
                 <button
@@ -459,7 +460,7 @@ function ExcelImportInventaire({
                 )}
 
                 {step === 'map' && (
-                    <div data-os-scroll className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+                    <ScrollArea className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
                         <div className="text-sm text-slate-600">
                             {rows.length} ligne(s) lues. Associez les colonnes (référence prioritaire pour le matching).
                         </div>
@@ -488,15 +489,15 @@ function ExcelImportInventaire({
                                 className="px-6 py-2 bg-blue-800 text-white rounded-full disabled:opacity-40"
                             >Voir les correspondances →</button>
                         </div>
-                    </div>
+                    </ScrollArea>
                 )}
 
                 {step === 'review' && (
-                    <div data-os-scroll className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+                    <ScrollArea className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
                         <div className="text-sm">
                             <b>{matched.length}</b> ligne(s) appariée(s) · {unmatched > 0 && <span className="text-amber-600">{unmatched} non appariée(s)</span>}
                         </div>
-                        <div data-os-scroll className="border border-slate-200 rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
+                        <ScrollArea className="border border-slate-200 rounded-xl overflow-hidden max-h-[400px] overflow-y-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>
                                     <th className="text-left px-3 py-2">Article</th>
@@ -514,7 +515,7 @@ function ExcelImportInventaire({
                                     })}
                                 </tbody>
                             </table>
-                        </div>
+                        </ScrollArea>
                         <div className="flex items-center justify-between">
                             <button onClick={() => setStep('map')} className="px-5 py-2 border border-slate-200 rounded-full">← Retour</button>
                             <button
@@ -523,7 +524,7 @@ function ExcelImportInventaire({
                                 className="px-6 py-2 bg-emerald-600 text-white rounded-full disabled:opacity-40"
                             >Appliquer {matched.length} ligne(s)</button>
                         </div>
-                    </div>
+                    </ScrollArea>
                 )}
             </div>
         </div>

@@ -3,6 +3,7 @@ import { useDatabase } from '../databaseProvider';
 import { useAlerts } from '../components/alerts';
 import { SvgSpinners180Ring, FluentSearch32Filled, FluentCloudArrowUp32Regular, FluentAdd32Regular, FluentDelete32Regular } from '../libs/icons';
 import ExcelParserWorker from '../workers/excel_parser.worker.ts?worker';
+import ScrollArea from './scroll_area';
 
 type ReapproLine = { articleId: string; quantite: number };
 
@@ -114,7 +115,7 @@ export default function ReapproModal({ open, onClose }: { open: boolean; onClose
                                 Ajouter un article
                             </button>
                         </div>
-                        <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-4">
+                        <ScrollArea className="flex-1 overflow-y-auto px-6 py-4">
                             <table className="w-full text-sm">
                                 <thead className="text-xs uppercase text-slate-500 border-b border-slate-200">
                                     <tr>
@@ -151,7 +152,7 @@ export default function ReapproModal({ open, onClose }: { open: boolean; onClose
                                     )}
                                 </tbody>
                             </table>
-                        </div>
+                        </ScrollArea>
                     </div>
                 )}
 
@@ -227,7 +228,7 @@ function ArticlePicker({
                         <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher..." className="flex-1 bg-transparent outline-none px-2 text-sm" />
                     </div>
                 </div>
-                <div data-os-scroll className="flex-1 overflow-y-auto">
+                <ScrollArea className="flex-1 overflow-y-auto">
                     {filtered.map((a) => (
                         <button key={a.id} onClick={() => { onPick(a.id); }} className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-50 flex items-center justify-between">
                             <div>
@@ -238,7 +239,7 @@ function ArticlePicker({
                         </button>
                     ))}
                     {filtered.length === 0 && <div className="text-center py-10 text-slate-400 text-sm">Aucun article.</div>}
-                </div>
+                </ScrollArea>
             </div>
         </div>
     );
@@ -331,7 +332,7 @@ function ExcelReappro({
     }
 
     return (
-        <div data-os-scroll className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+        <ScrollArea className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
             <div className="text-sm text-slate-600">{rows.length} ligne(s) lues. Choisissez les colonnes.</div>
             {(['ref', 'nom', 'qte'] as const).map((k) => {
                 const label = k === 'ref' ? 'Référence' : k === 'nom' ? 'Nom (fallback)' : 'Quantité à ajouter';
@@ -352,6 +353,6 @@ function ExcelReappro({
                 <div className="text-sm">{matched.length} ligne(s) appariée(s) {rows.length - matched.length > 0 && <span className="text-amber-600 ml-2">{rows.length - matched.length} non appariée(s)</span>}</div>
                 <button onClick={() => onLoaded(matched)} disabled={matched.length === 0} className="px-6 py-2 bg-blue-700 text-white rounded-full disabled:opacity-40">Charger {matched.length} ligne(s)</button>
             </div>
-        </div>
+        </ScrollArea>
     );
 }

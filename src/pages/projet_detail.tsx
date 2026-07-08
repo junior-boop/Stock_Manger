@@ -8,6 +8,7 @@ import { formatDate, formatFCFA } from '../libs/format';
 import { FluentAdd32Regular } from '../libs/icons';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import ScrollArea from '../components/scroll_area';
 
 const COLONNES: { id: StatutTache; label: string; color: string }[] = [
     { id: 'à_faire', label: 'À faire', color: 'bg-slate-100' },
@@ -162,7 +163,7 @@ export default function ProjetDetailPage() {
             </div>
 
             {/* Kanban */}
-            <div data-os-scroll className="flex-1 overflow-x-auto overflow-y-hidden">
+            <ScrollArea className="flex-1 overflow-x-auto overflow-y-hidden">
                 <div className="flex h-full gap-4 px-8 py-6 min-w-max">
                     {COLONNES.map(col => {
                         const colTaches = taches.filter(t => t.statut === col.id);
@@ -181,7 +182,7 @@ export default function ProjetDetailPage() {
                                     </button>
                                 </div>
 
-                                <div data-os-scroll className="flex-1 overflow-y-auto">
+                                <ScrollArea className="flex-1 overflow-y-auto">
                                     <div className='flex flex-col gap-2'>
                                         {colTaches
                                             .sort((a, b) => a.ordre - b.ordre)
@@ -229,12 +230,12 @@ export default function ProjetDetailPage() {
                                         )}
                                     </div>
 
-                                </div>
+                                </ScrollArea>
                             </div>
                         );
                     })}
                 </div>
-            </div>
+            </ScrollArea>
 
             <TacheSlideOver
                 tache={openTache}
@@ -604,7 +605,7 @@ function TacheSlideOver({
                     </button>
                 </div>
 
-                <div data-os-scroll className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
+                <ScrollArea className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
                     <div>
                         <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Titre</label>
                         <TextareaAutosize
@@ -697,7 +698,7 @@ function TacheSlideOver({
                             })}
                         </div>
                     </div>
-                </div>
+                </ScrollArea>
 
                 <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between shrink-0 mt-6">
                     <button

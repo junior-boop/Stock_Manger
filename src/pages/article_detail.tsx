@@ -3,6 +3,7 @@ import { NavLink, useParams } from 'react-router-dom';
 import { useDatabase } from '../databaseProvider';
 import { FluentChevronLeft32Filled, SvgSpinners180RingWithBg } from '../libs/icons';
 import { UniteArticle } from '../Databases/db.d';
+import ScrollArea from '../components/scroll_area';
 
 export default function ArticleDetail() {
     const { productId } = useParams<{ productId: string }>();
@@ -341,7 +342,7 @@ export default function ArticleDetail() {
                 </div>
             )}
 
-            <div data-os-scroll className="flex-1 flex flex-col h-full overflow-y-auto">
+            <ScrollArea className="flex-1 flex flex-col h-full overflow-y-auto">
                 <div className="h-[72px]"></div>
 
                 <div className="px-10 py-4 border-b border-slate-100 flex justify-between items-center">
@@ -744,7 +745,7 @@ export default function ArticleDetail() {
                         )}
                     </div>
                 </div>
-            </div>
+            </ScrollArea>
         </>
     );
 }

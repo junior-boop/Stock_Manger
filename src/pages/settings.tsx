@@ -7,6 +7,7 @@ import { useAlerts } from '../components/alerts';
 import { setDevisCompanyInfo } from '../libs/devis_pdf';
 import { setFactureCompanyInfo } from '../libs/facture_pdf';
 import ReapproModal from '../components/reappro_modal';
+import ScrollArea from '../components/scroll_area';
 
 type Section = 'entreprise' | 'numerotation' | 'sauvegarde' | 'permissions' | 'journal' | 'utilisateurs' | 'techniciens' | 'stock';
 
@@ -102,7 +103,7 @@ export default function SettingsPage() {
                     );
                 })}
             </aside>
-            <div data-os-scroll key={section} className="flex-1 h-full overflow-y-auto">
+            <ScrollArea key={section} className="flex-1 h-full overflow-y-auto">
                 {!allowed ? (
                     <div className="h-full w-full flex items-center justify-center">
                         <div className="text-center max-w-md px-6">
@@ -122,7 +123,7 @@ export default function SettingsPage() {
                         {section === 'journal' && <JournalSection />}
                     </>
                 )}
-            </div>
+            </ScrollArea>
         </div>
     );
 }
@@ -674,7 +675,7 @@ function EntrepriseSection() {
     const fileRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        window.companyApi.get().then((info) => {
+        window.db.entreprises.get().then((info) => {
             setForm({ ...EMPTY_ENTREPRISE, ...info });
         }).catch(() => undefined).finally(() => setLoading(false));
     }, []);
@@ -690,6 +691,7 @@ function EntrepriseSection() {
         }
         const reader = new FileReader();
         reader.onload = () => {
+            console.log(String(reader.result))
             setForm((f) => ({ ...f, logoDataUrl: String(reader.result ?? '') }));
         };
         reader.readAsDataURL(file);
@@ -698,7 +700,7 @@ function EntrepriseSection() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const next = await window.companyApi.set(form);
+            const next = await window.db.entreprises.update(form);
             setDevisCompanyInfo(next);
             setFactureCompanyInfo(next);
             window.dispatchEvent(new Event('company:changed'));
@@ -938,7 +940,7 @@ function NumerotationSection() {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        window.companyApi.get().then((info) => {
+        window.db.entreprises.get().then((info) => {
             setForm({
                 devisPrefix: info.devisPrefix || EMPTY_NUMEROTATION.devisPrefix,
                 facturePrefix: info.facturePrefix || EMPTY_NUMEROTATION.facturePrefix,
@@ -953,7 +955,7 @@ function NumerotationSection() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const next = await window.companyApi.set(form);
+            const next = await window.db.entreprises.update(form);
             setDevisCompanyInfo(next);
             setFactureCompanyInfo(next);
             window.dispatchEvent(new Event('company:changed'));

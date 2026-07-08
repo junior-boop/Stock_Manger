@@ -6,6 +6,7 @@ import { Client, Facture, StatutFacture } from '../Databases/db.d';
 import { FluentAdd32Regular, FluentSearch32Filled } from '../libs/icons';
 import Title from '../components/title';
 import { formatFCFA, formatDate } from '../libs/format';
+import ScrollArea from '../components/scroll_area';
 
 type Filter = 'tous' | 'en_cours' | 'payées' | 'en_retard' | 'brouillons';
 
@@ -95,7 +96,7 @@ function FacturesAside() {
                     </div>
                 </div>
 
-                <div data-os-scroll className="mt-4 flex bg-slate-100 rounded-full p-1 overflow-x-auto">
+                <ScrollArea className="mt-4 flex bg-slate-100 rounded-full p-1 overflow-x-auto">
                     {STATUTS.map((t) => (
                         <button
                             key={t.id}
@@ -106,14 +107,14 @@ function FacturesAside() {
                             {t.label}
                         </button>
                     ))}
-                </div>
+                </ScrollArea>
 
                 <div className="mt-4 text-xs text-gray-400 px-1">
                     {filtered.length} facture{filtered.length > 1 ? 's' : ''}
                 </div>
             </div>
 
-            <div data-os-scroll className="mt-2 flex-1 overflow-y-auto pr-1">
+            <ScrollArea className="mt-2 flex-1 overflow-y-auto pr-1">
                 <div className="px-3 flex flex-col gap-3">
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-8">
@@ -125,7 +126,7 @@ function FacturesAside() {
                         ))
                     )}
                 </div>
-            </div>
+            </ScrollArea>
         </div>
     );
 }

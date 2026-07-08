@@ -11,6 +11,7 @@ import {
     SvgSpinners180Ring,
 } from "../libs/icons";
 import { useAlerts } from "./alerts";
+import ScrollArea from "./scroll_area";
 
 type ParsedItem = {
     key: string;
@@ -467,7 +468,7 @@ export default function ImportExcelModal() {
 
                 {step === "map" && (
                     <>
-                    <div data-os-scroll className="flex-1 overflow-y-auto p-8">
+                    <ScrollArea className="flex-1 overflow-y-auto p-8">
                         <div className="max-w-[900px] mx-auto flex flex-col gap-6">
                             <div className="text-sm text-gray-500">
                                 Pour chaque champ de la base, choisissez la colonne du fichier qui lui correspond. La colonne « Nom du produit » est obligatoire.
@@ -534,7 +535,7 @@ export default function ImportExcelModal() {
                                 })}
                             </div>
                         </div>
-                    </div>
+                    </ScrollArea>
                     <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
                         <button
                             onClick={() => {
@@ -560,7 +561,7 @@ export default function ImportExcelModal() {
                 {step === "review" && (
                     <>
                     <div className="flex-1 flex min-h-0">
-                        <aside data-os-scroll className="w-[340px] border-r border-slate-100 flex flex-col p-4 gap-3 overflow-y-auto">
+                        <ScrollArea as="aside" className="w-[340px] border-r border-slate-100 flex flex-col p-4 gap-3 overflow-y-auto">
                             <div>
                                 <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Affecter à</div>
                                 <select
@@ -661,7 +662,7 @@ export default function ImportExcelModal() {
                                 <FluentDelete32Regular className="h-4 w-4" />
                                 Retirer {selected.size > 0 ? `(${selected.size})` : ""}
                             </button>
-                        </aside>
+                        </ScrollArea>
 
                         <div className="flex-1 flex flex-col min-w-0">
                             <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
@@ -685,7 +686,7 @@ export default function ImportExcelModal() {
                                 </button>
                             </div>
 
-                            <div data-os-scroll className="flex-1 overflow-y-auto">
+                            <ScrollArea className="flex-1 overflow-y-auto">
                                 <table className="w-full text-sm">
                                     <thead className="sticky top-0 bg-white border-b border-slate-100 text-xs uppercase text-gray-400">
                                         <tr>
@@ -718,7 +719,7 @@ export default function ImportExcelModal() {
                                         ) : null}
                                     </tbody>
                                 </table>
-                            </div>
+                            </ScrollArea>
                             {filteredItems.length > PAGE_SIZE ? (
                                 <div className="px-5 py-2 border-t border-slate-100 flex items-center justify-between text-sm">
                                     <div className="text-gray-500">
@@ -772,7 +773,7 @@ export default function ImportExcelModal() {
 
                 {step === "summary" && (
                     <>
-                    <div data-os-scroll className="flex-1 overflow-y-auto p-8">
+                    <ScrollArea className="flex-1 overflow-y-auto p-8">
                         <div className="max-w-[900px] mx-auto flex flex-col gap-6">
                             <div>
                                 <h3 className="text-lg font-semibold">Récapitulatif de l'affectation</h3>
@@ -790,7 +791,7 @@ export default function ImportExcelModal() {
                                 onRemove={(key) => removeItems(new Set([key]))}
                             />
                         </div>
-                    </div>
+                    </ScrollArea>
                     <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
                         <div className="text-sm text-gray-500">
                             {importing

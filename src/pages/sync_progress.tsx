@@ -32,6 +32,13 @@ const PHASE_LABELS: Record<string, string> = {
 
 const PHASE_STEPS = ['bootstrap', 'pull', 'push', 'images'];
 
+// Le bootstrap paginé peut légitimement prendre longtemps sur un gros
+// jeu de données (jusqu'à 100 000 pages/table) tant qu'il progresse.
+// On ne déclenche l'échappatoire que s'il n'y a plus eu la moindre
+// mise à jour de statut depuis ce délai (serveur bloqué/en boucle),
+// plutôt qu'un timeout fixe sur la durée totale.
+const INACTIVITY_TIMEOUT_MS = 20000;
+
 function getProgressPercent(status: SyncStatus): number {
   if (status.total === 0) return 0;
   return Math.min(Math.round((status.progress / status.total) * 100), 100);
@@ -42,9 +49,11 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
   const [status, setStatus] = useState<SyncStatus>(() => syncClient.getStatus());
   const [timedOut, setTimedOut] = useState(false);
   const doneRef = useRef(false);
+  const lastActivityRef = useRef(Date.now());
 
   useEffect(() => {
     const unsub = syncClient.subscribe((s) => {
+      lastActivityRef.current = Date.now();
       setStatus(s);
       if (syncClient.initialSyncDone && !doneRef.current) {
         doneRef.current = true;
@@ -55,16 +64,11 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
   }, [onDone]);
 
   useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      if (!cancelled && !syncClient.initialSyncDone) {
-        setTimedOut(true);
-      }
-    }, 60000);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
+    const timer = window.setInterval(() => {
+      if (doneRef.current) return;
+      setTimedOut(Date.now() - lastActivityRef.current > INACTIVITY_TIMEOUT_MS);
+    }, 2000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -94,6 +98,7 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
 
   const progress = getProgressPercent(status);
   const isActive = status.running || status.phase !== 'idle';
+  const isBootstrap = status.phase === 'bootstrap';
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100dvh-36px)] w-full bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -120,13 +125,12 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
 
             return (
               <div key={phase} className="flex items-center gap-3 text-sm">
-                <div className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                  done
-                    ? 'bg-emerald-500 text-white'
-                    : active
+                <div className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${done
+                  ? 'bg-emerald-500 text-white'
+                  : active
                     ? 'bg-blue-500 text-white animate-pulse'
                     : 'bg-gray-100 text-gray-400'
-                }`}>
+                  }`}>
                   {done ? '✓' : active ? '…' : phaseIdx + 1}
                 </div>
                 <span className={`${done ? 'text-emerald-600' : active ? 'text-blue-600 font-medium' : 'text-gray-400'}`}>
@@ -145,11 +149,10 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
         <div className="w-full space-y-1">
           <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ease-out ${
-                isActive
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500'
-                  : 'bg-gray-300'
-              }`}
+              className={`h-full rounded-full transition-all duration-500 ease-out ${isActive
+                ? 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                : 'bg-gray-300'
+                }`}
               style={{ width: isActive ? `${Math.max(progress, 4)}%` : '100%' }}
             />
           </div>
@@ -161,7 +164,11 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
                 : ''}
             </span>
             {isActive && status.total > 0 && (
-              <span>{Math.min(status.progress, status.total)}/{status.total}</span>
+              <span>
+                {isBootstrap
+                  ? `${Math.min(status.progress, status.total)} / ${status.total} éléments`
+                  : `${Math.min(status.progress, status.total)} / ${status.total}`}
+              </span>
             )}
           </div>
         </div>
@@ -176,7 +183,7 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
         {timedOut && (
           <div className="flex flex-col items-center gap-3">
             <div className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg text-center">
-              La synchronisation est longue. Vous pouvez continuer, les données finiront de se charger en arrière-plan.
+              La synchronisation semble bloquée. Vous pouvez continuer, les données finiront de se charger en arrière-plan.
             </div>
             <button
               onClick={() => {
@@ -191,7 +198,7 @@ export default function SyncProgressPage({ onDone }: { onDone: () => void }) {
         )}
 
         {status.lastError && !timedOut && (
-          <div className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg text-center">
+          <div className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg text-center max-w-full break-words">
             {status.lastError}
           </div>
         )}

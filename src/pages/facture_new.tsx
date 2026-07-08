@@ -6,6 +6,7 @@ import { Facture, LigneDocument, ModePaiement, Paiement, StatutFacture } from '.
 import FactureForm, { FactureFormValue, computeTotaux } from '../components/facture_form';
 import { formatDate, formatFCFA, fromDateInput } from '../libs/format';
 import { useAlerts } from '../components/alerts';
+import ScrollArea from '../components/scroll_area';
 import { v4 as uuidv4 } from 'uuid';
 
 const MODES: { value: ModePaiement; label: string }[] = [
@@ -61,11 +62,11 @@ export default function FactureNewPage() {
     });
 
     useEffect(() => {
-        window.companyApi.get().then((info) => {
+        window.db.entreprises.get().then((info) => {
             if (typeof info?.afficherTVA === 'boolean') {
                 setValue((v) => ({ ...v, afficherTVA: info.afficherTVA }));
             }
-        }).catch(() => {});
+        }).catch(() => { });
     }, []);
 
     const linkedDevis = useMemo(() => devis.find((d) => d.id === linkedDevisId), [devis, linkedDevisId]);
@@ -209,7 +210,7 @@ export default function FactureNewPage() {
                 </button>
             </div>
 
-            <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-6">
+            <ScrollArea className="flex-1 overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
 
                 <div className="mx-auto max-w-270 mb-4 bg-white rounded-2xl border border-slate-200 p-5">
@@ -307,7 +308,7 @@ export default function FactureNewPage() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </ScrollArea>
         </div>
     );
 }

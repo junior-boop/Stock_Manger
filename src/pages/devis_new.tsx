@@ -50,7 +50,7 @@ export default function DevisNewPage() {
     });
 
     useEffect(() => {
-        window.companyApi.get().then((info) => {
+        window.db.entreprises.get().then((info) => {
             if (typeof info?.afficherTVA === 'boolean') {
                 setValue((v) => ({ ...v, afficherTVA: info.afficherTVA }));
             }

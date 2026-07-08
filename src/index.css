@@ -174,6 +174,10 @@ body {
     font-size: 1rem;
 }
 
+button {
+    outline: none;
+}
+
 /* OverlayScrollbars custom theme : thumb noir en bloc, track transparent, overlay */
 @import "overlayscrollbars/overlayscrollbars.css";
 
@@ -241,6 +245,7 @@ body {
         opacity: 0;
         backdrop-filter: blur(0);
     }
+
     to {
         opacity: 1;
         backdrop-filter: blur(6px);
@@ -251,6 +256,7 @@ body {
     from {
         opacity: 0;
     }
+
     to {
         opacity: 1;
     }
@@ -261,6 +267,7 @@ body {
         opacity: 0;
         transform: translateY(-8px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -272,6 +279,7 @@ body {
         opacity: 0;
         transform: scale(0.94);
     }
+
     to {
         opacity: 1;
         transform: scale(1);

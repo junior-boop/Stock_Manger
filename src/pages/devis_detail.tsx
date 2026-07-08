@@ -14,6 +14,7 @@ import { buildDevisHTML } from '../libs/devis_pdf';
 import { FluentMoreHorizontal32Regular } from '../libs/icons';
 import Switch from '../components/switch';
 import { v4 as uuidv4 } from 'uuid';
+import ScrollArea from '../components/scroll_area';
 
 const STATUT_OPTIONS: StatutDevis[] = ['brouillon', 'envoyé', 'accepté', 'refusé', 'expiré', 'annulé'];
 
@@ -472,7 +473,7 @@ export default function DevisDetailPage() {
                 )}
             </div>
 
-            <div data-os-scroll className="flex-1 flex flex-col overflow-y-auto px-6 py-6">
+            <ScrollArea className="flex-1 flex flex-col overflow-y-auto px-6 py-6">
                 {error && <div className="mb-4 px-4 py-2 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
                 <DevisForm
                     value={value}
@@ -483,7 +484,7 @@ export default function DevisDetailPage() {
                     lockClient
                     envois={current.envois ?? []}
                 />
-            </div>
+            </ScrollArea>
 
             {sendOpen && (
                 <DevisSendModal

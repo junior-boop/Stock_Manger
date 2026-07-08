@@ -612,7 +612,7 @@ function migrateCompanyJsonToDb() {
   }
 }
 
-ipcMain.handle('company:get', async () => {
+ipcMain.handle('entreprises:get', async () => {
   const fromDb = getEntreprise();
   if (fromDb) {
     const { id, ...data } = fromDb;
@@ -646,18 +646,6 @@ ipcMain.handle('company:get', async () => {
   };
 });
 
-ipcMain.handle('company:set', async (_event, data) => {
-  const updated = updateEntreprise(data);
-  if (fs.existsSync(companyInfoPath)) {
-    fs.unlinkSync(companyInfoPath);
-  }
-  if (updated) {
-    const { id, ...rest } = updated;
-    return rest;
-  }
-  return data;
-});
-
 // ======================== IPC HANDLERS - ENTREPRISES (SYNC) ========================
 ipcMain.handle('entreprises:getById', async (_event, id: string) => {
   const row = getEntreprise();
@@ -668,6 +656,23 @@ ipcMain.handle('entreprises:getAll', async () => {
   const row = getEntreprise();
   return row ? [row] : [];
 });
+
+ipcMain.handle('entreprises:update', async (_event, data) => {
+  try {
+    const row = updateEntreprise(data);
+    if (fs.existsSync(companyInfoPath)) {
+      fs.unlinkSync(companyInfoPath);
+    }
+    if (row) {
+      const { id, ...rest } = row;
+      return rest;
+    }
+    throw new Error('Échec de la mise à jour de l\'entreprise.');
+  } catch (e) {
+    console.error('[entreprises:update]', e);
+    throw e;
+  }
+})
 
 // ======================== IPC HANDLERS - SYNC CONFIG ========================
 const syncConfigPath = path.join(app.getPath('userData'), 'sync.json');
@@ -937,7 +942,7 @@ app.whenReady().then(async () => {
           "script-src 'self' 'unsafe-inline'; " +
           "style-src 'self' 'unsafe-inline'; " +
           "img-src 'self' data: blob:; " +
-          "connect-src 'self' https://*.workers.dev; " +
+          "connect-src 'self' https://*.workers.dev wss://*.workers.dev; " +
           "font-src 'self' data:"
         ],
       },

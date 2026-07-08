@@ -35,7 +35,6 @@ import { AlertsProvider, useAlerts } from '../components/alerts';
 import { SyncRevisionProvider } from '../context/sync_revision';
 import { useDatabase } from '../databaseProvider';
 import { useEffect, useRef, useState } from 'react';
-import { initGlobalScrollbars } from '../libs/scrollbars';
 import { setDevisCompanyInfo } from '../libs/devis_pdf';
 import { setFactureCompanyInfo } from '../libs/facture_pdf';
 import { SvgSpinners180RingWithBg } from '../libs/icons';
@@ -53,7 +52,7 @@ const Router = () => {
             setSyncProgress('checking');
             return;
         }
-        window.companyApi.get()
+        window.db.entreprises.get()
             .then((info) => setCompanyCheck(info.setupDone ? 'done' : 'needed'))
             .catch(() => setCompanyCheck('done'));
         window.db.inventaires.getBrouillon()
@@ -91,7 +90,7 @@ const Router = () => {
 
     useEffect(() => {
         if (!user || syncProgress !== 'done') return;
-        window.companyApi.get()
+        window.db.entreprises.get()
             .then((info) => setCompanyCheck(info.setupDone ? 'done' : 'needed'))
             .catch(() => setCompanyCheck('done'));
         window.db.inventaires.getBrouillon()
@@ -207,18 +206,10 @@ function InventoryWatcher() {
 
 export default function App() {
     useEffect(() => {
-        let dispose: (() => void) | null = null;
-        const timer = window.setTimeout(() => {
-            dispose = initGlobalScrollbars();
-        }, 300);
-        window.companyApi?.get().then((info) => {
+        window.db.entreprises?.get().then((info) => {
             setDevisCompanyInfo(info);
             setFactureCompanyInfo(info);
         }).catch(() => { /* defaults kept */ });
-        return () => {
-            window.clearTimeout(timer);
-            dispose?.();
-        };
     }, []);
     return (
         <AlertsProvider>

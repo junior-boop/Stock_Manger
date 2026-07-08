@@ -7,6 +7,7 @@ import { FluentAdd32Regular, FluentSearch32Filled } from '../libs/icons';
 import ClientFormModal from '../components/client_form_modal';
 import Title from '../components/title';
 import { useNavigate } from 'react-router-dom';
+import ScrollArea from '../components/scroll_area';
 
 type Filter = 'tous' | TypeClient;
 
@@ -125,7 +126,7 @@ function ClientAside() {
                     {filtered.length} client{filtered.length > 1 ? 's' : ''}
                 </div>
             </div>
-            <div data-os-scroll className="mt-2 flex-1 overflow-y-auto pr-1">
+            <ScrollArea className="mt-2 flex-1 overflow-y-auto pr-1">
                 <div className='flex flex-col gap-3 px-3'>
                     {filtered.length === 0 ? (
                         <div className="text-sm text-gray-400 text-center py-8">
@@ -142,7 +143,7 @@ function ClientAside() {
                     )}
                 </div>
 
-            </div>
+            </ScrollArea>
 
             {modalOpen && (
                 <ClientFormModal

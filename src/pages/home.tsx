@@ -5,6 +5,7 @@ import { useAuth } from '../auth/authProvider';
 import { formatFCFA } from '../libs/format';
 import { db } from '../context/db_sync';
 import { Devis, Facture, TacheProjet } from '../Databases/db.d';
+import ScrollArea from '../components/scroll_area';
 import {
     FluentReceiptMoney24Filled,
     FluentClipboardDataBar32Filled,
@@ -314,7 +315,7 @@ export default function HomePage() {
     const greetingName = user?.prenom || user?.nom || '';
 
     return (
-        <div data-os-scroll className="h-full w-full overflow-y-auto bg-slate-50">
+        <ScrollArea className="h-full w-full overflow-y-auto bg-slate-50">
             <div className="max-w-7xl mx-auto px-8 py-10">
                 <header className="mb-8">
                     <div className="text-xs uppercase tracking-wider text-gray-400">{monthLabel}</div>
@@ -481,7 +482,7 @@ export default function HomePage() {
 
 
             </div>
-        </div>
+        </ScrollArea>
     );
 }
 

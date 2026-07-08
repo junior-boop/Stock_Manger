@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useParams } from "react-router-dom"
 import { useDatabase } from "../databaseProvider"
 import { useCallback, useEffect, useState } from "react"
-import { FluentAdd32Regular, FluentBox32Filled, SvgSpinners180Ring } from "../libs/icons"
+import { FluentAdd32Regular, FluentBox32Filled, FluentSearch32Filled, SvgSpinners180Ring } from "../libs/icons"
 import { openNewProductWindow, OpenSousCollection } from "../context/open_product"
 import { Article, SousCollection } from "../Databases/db.d"
 
@@ -29,6 +29,17 @@ export default function ProductPage() {
         ordre: 0
     })
 
+    const [searchQuery, setSearchQuery] = useState("")
+    const [searchOpen, setSearchOpen] = useState(false)
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+    const searchScope = id ? articlesForCollection : articles
+    const searchResults = normalizedQuery
+        ? searchScope.filter(a => {
+            const hay = `${a.nom ?? ""} ${a.reference ?? ""} ${a.description ?? ""}`.toLowerCase()
+            return hay.includes(normalizedQuery)
+        })
+        : []
+
     const handleOpenSousCollection = () => {
         set_sous()
         setLoading(true)
@@ -48,22 +59,79 @@ export default function ProductPage() {
     }
     return (
         <>
+            {searchOpen && normalizedQuery && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-24" onClick={() => setSearchOpen(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-180 max-h-[70vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                            <FluentSearch32Filled className="w-6 h-6 text-slate-500" />
+                            <input
+                                autoFocus
+                                type="text"
+                                value={searchQuery}
+                                onChange={({ target }) => setSearchQuery(target.value)}
+                                placeholder={`Rechercher dans ${sousCollectionName ?? name?.nom ?? "cette collection"}`}
+                                className="outline-none text-base flex-1"
+                            />
+                            <span className="text-sm text-slate-400">{searchResults.length} résultat(s)</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3">
+                            {searchResults.length === 0 ? (
+                                <div className="text-center text-slate-400 py-10">Aucun produit trouvé</div>
+                            ) : (
+                                <ul className="flex flex-col gap-1">
+                                    {searchResults.map(a => (
+                                        <li key={a.id}>
+                                            <NavLink
+                                                to={`/produits/article/${a.id}`}
+                                                onClick={() => { setSearchOpen(false); setSearchQuery("") }}
+                                                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100"
+                                            >
+                                                <span className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                                                    <FluentBox32Filled className="w-5 h-5 text-slate-400" />
+                                                </span>
+                                                <span className="flex flex-col flex-1 min-w-0">
+                                                    <span className="text-sm font-semibold uppercase truncate">{a.nom}</span>
+                                                    <span className="text-xs text-slate-500 truncate">Réf : {a.reference} · Stock : {a.stockTotal}</span>
+                                                </span>
+                                                <span className="text-sm text-slate-600 whitespace-nowrap">
+                                                    {Intl.NumberFormat("fr-FR", { style: "currency", currency: "XAF" }).format(a.prixTTC ?? 0)}
+                                                </span>
+                                            </NavLink>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
             <section className="flex-1 flex flex-col h-full">
                 <div className="h-[72px]"></div>
                 <div className="px-10 py-3 border-b border-slate-100 w-full flex justify-between">
                     <h1 className="font-light text-4xl">
                         {name?.nom}
-                        {sousCollectionName && (
-                            <span className="text-slate-400"> — {sousCollectionName}</span>
-                        )}
+                        {sousCollectionName && (<span className="text-slate-400"> — {sousCollectionName}</span>)}
                     </h1>
                     <div className="flex items-center gap-2 mt-auto">
+                        <div className="relative">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded-full min-w-75">
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={({ target }) => { setSearchQuery(target.value); setSearchOpen(true) }}
+                                    onFocus={() => setSearchOpen(true)}
+                                    placeholder={`Rechercher dans ${sousCollectionName ?? name?.nom ?? "cette collection"}`}
+                                    className="outline-none text-base flex-1 bg-transparent"
+                                />
+                                <FluentSearch32Filled className="w-7 h-7" />
+                            </div>
+                        </div>
                         <button onClick={handleOpenSousCollection} className="px-4 py-2 bg-blue-800 text-white  rounded-full min-w-[175px] flex items-center justify-center" disabled={isLoading}>
                             {
                                 isLoading ? <SvgSpinners180Ring className="h-6 w-6" /> : <span className="flex gap-2 items-center">Sous Collect. <FluentAdd32Regular className="h-5 w-5" /></span>
                             }
                         </button>
-                        <button onClick={open_set} className="px-4 py-2 bg-gray-200 rounded-full min-w-[175px] flex items-center justify-center gap-2" >Nouv. Prod. <FluentBox32Filled className=" h-5 w-5 text-black" /></button>
+                        <button onClick={open_set} className="px-4 py-2 bg-gray-200 rounded-full min-w-43.75 flex items-center justify-center gap-2" >Nouv. Prod. <FluentBox32Filled className=" h-5 w-5 text-black" /></button>
                         {/* <button className="px-4 py-2 bg-gray-200 rounded-full" >Annuler</button> */}
                     </div>
                 </div>

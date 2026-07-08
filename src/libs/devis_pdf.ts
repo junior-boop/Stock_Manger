@@ -13,6 +13,7 @@ type CompanyPdfInfo = {
     nom: string;
     adresse: string;
     telephone: string;
+    matricule : string;
     email: string;
     logoDataUrl: string;
     notesDevis: string;
@@ -27,6 +28,7 @@ let COMPANY: CompanyPdfInfo = {
     telephone: '+237 6XX XX XX XX',
     email: 'contact@kataleya.com',
     logoDataUrl: '',
+    matricule: '',
     notesDevis: '',
     notesFacture: '',
     conditionsPaiement: '',
@@ -78,8 +80,6 @@ function renderClientBlock(client: Client | undefined): string {
         <div class="block-title">Client</div>
         <div class="strong">${esc(name)}</div>
         ${addrLine ? `<div>${esc(addrLine)}</div>` : ''}
-        ${client.email ? `<div>${esc(client.email)}</div>` : ''}
-        ${client.telephone ? `<div>${esc(client.telephone)}</div>` : ''}
     `;
 }
 
@@ -169,9 +169,9 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(COMPANY.nom)} — ${esc(devis.numero)}${COMPANY.telephone ? ` — ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` — ${esc(COMPANY.email)}` : ''}</title>
+<title>${esc(COMPANY.nom)} | ${COMPANY.telephone ? ` | ${esc(COMPANY.telephone)}` : ''}${` | ${COMPANY.matricule}`}</title>
 <style>
-    @page { margin: 15mm 15mm 10mm 15mm; }
+    @page { margin: 10mm 10mm 10mm 10mm; }
 
     * { box-sizing: border-box; }
     body {

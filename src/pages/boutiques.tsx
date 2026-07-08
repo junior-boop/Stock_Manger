@@ -3,6 +3,7 @@ import Title from '../components/title';
 import Switch from '../components/switch';
 import { usePermissions } from '../auth/authProvider';
 import { useDatabase } from '../databaseProvider';
+import ScrollArea from '../components/scroll_area';
 import {
     FluentAdd32Regular,
     FluentSearch32Filled,
@@ -135,7 +136,7 @@ export default function BoutiquesPage() {
                 </div>
             </div>
 
-            <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-4">
+            <ScrollArea className="flex-1 overflow-y-auto px-6 py-4">
                 {filtered.length === 0 ? (
                     <div className="text-center py-12 text-sm text-gray-400">
                         {query ? 'Aucun résultat.' : 'Aucune boutique.'}
@@ -218,7 +219,7 @@ export default function BoutiquesPage() {
                         })}
                     </div>
                 )}
-            </div>
+            </ScrollArea>
 
             {viewing && (
                 <BoutiqueStockModal
@@ -511,7 +512,7 @@ function BoutiqueStockModal({
                     </div>
                 </div>
 
-                <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-3 flex flex-col gap-2">
+                <ScrollArea className="flex-1 overflow-y-auto px-6 py-3 flex flex-col gap-2">
                     {groupes.length === 0 ? (
                         <div className="text-center py-12 text-sm text-gray-400">
                             {query ? 'Aucun résultat.' : 'Aucun article en stock dans cette boutique.'}
@@ -559,7 +560,7 @@ function BoutiqueStockModal({
                             );
                         })
                     )}
-                </div>
+                </ScrollArea>
             </div>
         </div>
     );

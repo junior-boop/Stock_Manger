@@ -4,6 +4,7 @@ import { useDatabase } from '../databaseProvider';
 import { useAuth } from '../auth/authProvider';
 import { Client, StatutProjet } from '../Databases/db.d';
 import { formatDate } from '../libs/format';
+import ScrollArea from '../components/scroll_area';
 
 function displayClient(c: Client): string {
     if (c.type === 'entreprise') return c.raisonSociale || c.nom;
@@ -60,7 +61,7 @@ export default function ProjetNewPage() {
     };
 
     return (
-        <div data-os-scroll className="flex-1 flex flex-col h-full overflow-y-auto">
+        <ScrollArea className="flex-1 flex flex-col h-full overflow-y-auto">
             <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between">
                 <h1 className="text-2xl font-semibold">Nouveau projet</h1>
             </div>
@@ -166,6 +167,6 @@ export default function ProjetNewPage() {
                     </button>
                 </div>
             </form>
-        </div>
+        </ScrollArea>
     );
 }

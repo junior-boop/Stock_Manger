@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth, usePermissions } from '../auth/authProvider';
 import { useDatabase } from '../databaseProvider';
 import Title from '../components/title';
+import ScrollArea from '../components/scroll_area';
 import {
     FluentSearch32Filled,
     FluentArchive32Regular,
@@ -263,7 +264,7 @@ export default function StockTransfertsPage() {
                 </div>
             </div>
 
-            <div data-os-scroll className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+            <ScrollArea className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* FORM */}
                     <form
@@ -467,7 +468,7 @@ export default function StockTransfertsPage() {
                             <FluentArchive32Regular className="h-4 w-4 text-slate-600" />
                             <span className="text-sm font-medium">Historique récent</span>
                         </div>
-                        <div data-os-scroll className="mt-3 flex-1 overflow-y-auto flex flex-col gap-2">
+                        <ScrollArea className="mt-3 flex-1 overflow-y-auto flex flex-col gap-2">
                             {transferts.length === 0 ? (
                                 <div className="text-xs text-gray-400">Aucune opération.</div>
                             ) : (
@@ -505,10 +506,10 @@ export default function StockTransfertsPage() {
                                     );
                                 })
                             )}
-                        </div>
+                        </ScrollArea>
                     </aside>
                 </div>
-            </div>
+            </ScrollArea>
         </div>
     );
 }

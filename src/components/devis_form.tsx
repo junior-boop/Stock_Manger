@@ -5,6 +5,7 @@ import { FluentAdd32Regular, FluentDelete32Regular, FluentMoreHorizontal32Regula
 import ClientFormModal from './client_form_modal';
 import { useAlerts } from './alerts';
 import Switch from './switch';
+import ScrollArea from './scroll_area';
 
 export type DevisFormValue = {
     clientId: string;
@@ -551,7 +552,7 @@ type LigneActions = {
 function LignesBlock({ lignes, actions }: { lignes: LigneDocument[]; actions: LigneActions }) {
     const { updateLigne, removeLigne, readOnly, afficherTVA = true } = actions;
     return (
-        <div data-os-scroll className="overflow-x-auto">
+        <ScrollArea className="overflow-x-auto">
             <table className="w-full text-sm">
                 <thead className="text-xs uppercase text-gray-400">
                     <tr>
@@ -596,7 +597,7 @@ function LignesBlock({ lignes, actions }: { lignes: LigneDocument[]; actions: Li
                     ))}
                 </tbody>
             </table>
-        </div>
+        </ScrollArea>
     );
 }
 

@@ -3,6 +3,7 @@ import { openNewProductWindow } from "../context/open_product";
 import { useDatabase } from "../databaseProvider";
 import { Article, UniteArticle, DimensionsArticle, StatutActif } from "../Databases/db.d";
 import { useParams } from 'react-router-dom';
+import ScrollArea from '../components/scroll_area';
 
 export default function NewProduct() {
     const { open_state, open_set } = openNewProductWindow();
@@ -197,7 +198,7 @@ export default function NewProduct() {
     const filteredSousCollections = sousCollections.filter(sc => sc.collectionId === id);
 
     return (
-        <div data-os-scroll className="absolute right-0 top-0 p-8 rounded-l-3xl bg-white h-full w-[700px] slide-enter overflow-y-auto">
+        <ScrollArea className="absolute right-0 top-0 p-8 rounded-l-3xl bg-white h-full w-[700px] slide-enter overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-inter-semibold">Nouveau Produit</h2>
                 <button
@@ -473,6 +474,6 @@ export default function NewProduct() {
                     </button>
                 </div>
             </form>
-        </div>
+        </ScrollArea>
     );
 }

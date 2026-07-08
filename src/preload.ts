@@ -204,6 +204,8 @@ const inventairesApi = {
 const entreprisesApi = {
   getById: (id: string) => ipcRenderer.invoke('entreprises:getById', id),
   getAll: () => ipcRenderer.invoke('entreprises:getAll'),
+  get: (): Promise<CompanyInfo> => ipcRenderer.invoke('entreprises:get'),
+  update: (data: Partial<CompanyInfo>): Promise<CompanyInfo> => ipcRenderer.invoke('entreprises:update', data),
 };
 
 // ======================== EXPOSE APIs VIA CONTEXT BRIDGE ========================
@@ -244,7 +246,7 @@ const shellApi = {
 contextBridge.exposeInMainWorld('pdf', pdfApi);
 contextBridge.exposeInMainWorld('shell', shellApi);
 
-// ======================== COMPANY INFO ========================
+// ======================== COMPANY INFO (types partagés par entreprisesApi) ========================
 type CustomField = {
   id: string;
   type: 'email' | 'tel' | 'url' | 'address' | 'text';
@@ -270,11 +272,6 @@ type CompanyInfo = {
   devise: string;
   afficherTVA: boolean;
 };
-const companyApi = {
-  get: (): Promise<CompanyInfo> => ipcRenderer.invoke('company:get'),
-  set: (data: Partial<CompanyInfo>): Promise<CompanyInfo> => ipcRenderer.invoke('company:set', data),
-};
-contextBridge.exposeInMainWorld('companyApi', companyApi);
 
 // ======================== SYNC ========================
 type SyncConfig = {

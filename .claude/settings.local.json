@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk 'NR==25{print NR\": [base64 logo omitted, \"length\\($0\\)\" chars]\"; next} NR>=26 && NR<=45{print NR\": \"$0}' src/libs/devis_pdf.ts)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

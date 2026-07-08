@@ -12,6 +12,7 @@ import NewProduct from "../pages/new_product";
 import { useAlerts } from "../components/alerts";
 import { FluentCloudArrowUp32Regular, FluentArrowDownload32Filled } from "../libs/icons";
 import { formatFCFA } from "../libs/format";
+import ScrollArea from "../components/scroll_area";
 
 type OpenLayout = {
     get: boolean
@@ -180,7 +181,7 @@ const HomeGroupPage = () => {
     }
 
     return (
-        <div data-os-scroll className="h-dvh flex-1 overflow-x-hidden overflow-y-auto">
+        <ScrollArea className="h-dvh flex-1 overflow-x-hidden overflow-y-auto">
             <div className="px-10 py-10 flex flex-col gap-8">
                 <div>
                     <h1 className="text-4xl font-light">Produits</h1>
@@ -244,7 +245,7 @@ const HomeGroupPage = () => {
                     />
                 </div>
             </div>
-        </div>
+        </ScrollArea>
     )
 }
 
@@ -339,11 +340,11 @@ export function AsideList() {
                 </div>
             </div>
 
-            <div data-os-scroll className="mt-2 flex-1 overflow-y-auto">
+            <ScrollArea className="mt-2 flex-1 overflow-y-auto">
                 <div className="px-3 flex flex-col gap-2">
                     {filtered.map((el, key) => <GroupeItems data={el} key={key} />)}
                 </div>
-            </div>
+            </ScrollArea>
         </div>
     )
 }

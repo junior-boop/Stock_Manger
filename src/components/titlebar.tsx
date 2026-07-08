@@ -103,9 +103,9 @@ function SyncIndicator() {
                             <>
                                 <StatusRow label="Phase" value={
                                     status.phase === 'pull' ? 'Récupération serveur' :
-                                    status.phase === 'push' ? 'Envoi serveur' :
-                                    status.phase === 'bootstrap' ? 'Initialisation' :
-                                    status.phase === 'images' ? 'Images' : '—'
+                                        status.phase === 'push' ? 'Envoi serveur' :
+                                            status.phase === 'bootstrap' ? 'Initialisation' :
+                                                status.phase === 'images' ? 'Images' : '—'
                                 } />
                                 {status.currentTable && (
                                     <StatusRow label="Table" value={status.currentTable.replace(/_/g, ' ')} />
@@ -171,7 +171,7 @@ function StatusRow({ label, value, dot }: { label: string; value: string; dot?: 
                 {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
                 {label}
             </span>
-            <span className="text-gray-700 font-medium truncate ml-2 max-w-[160px]" title={value}>{value}</span>
+            <span className="text-gray-700 font-medium truncate ml-2 max-w-40" title={value}>{value}</span>
         </div>
     );
 }
@@ -192,7 +192,7 @@ export default function TitleBar() {
 
     useEffect(() => {
         const load = () => {
-            window.companyApi?.get().then((info) => {
+            window.db.entreprises?.get().then((info) => {
                 if (info.nom) setCompanyName(info.nom);
                 setCompanyLogo(info.logoDataUrl || '');
                 document.title = info.nom || 'Kataleya';
@@ -203,6 +203,8 @@ export default function TitleBar() {
         window.addEventListener('company:changed', onChange);
         return () => window.removeEventListener('company:changed', onChange);
     }, []);
+
+    console.log('user', user);
 
     return (
         <div
