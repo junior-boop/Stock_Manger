@@ -1,12 +1,12 @@
 import { Outlet, NavLink, useLocation, useNavigate, useParams } from "react-router-dom"
-import { FluentAdd32Regular, FluentAlert32Filled, FluentArrowUp32Filled, FluentCheckmark32Regular, FluentChevronRight32Filled, FluentDelete32Regular, FluentEdit32Regular, FluentSearch32Filled, SvgSpinners180Ring, } from "../libs/icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FluentAdd32Regular, FluentAlert32Filled, FluentArrowUp32Filled, FluentCheckmark32Regular, FluentChevronRight32Filled, FluentDelete32Regular, FluentEdit32Regular, FluentFolderLink32Regular, FluentSearch32Filled, SvgSpinners180Ring, } from "../libs/icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Title from "../components/title";
 
 import { useDatabase } from "../databaseProvider"
 
 import { create } from 'zustand'
-import { Article, Collection, Facture } from "../Databases/db.d";
+import { Article, Collection, Facture, SousCollection } from "../Databases/db.d";
 import { openNewProductWindow, useImportExcelStore } from "../context/open_product";
 import NewProduct from "../pages/new_product";
 import { useAlerts } from "../components/alerts";
@@ -99,7 +99,7 @@ export default function ProductLayouts() {
             }
 
             {
-                get && <div className="absolute top-0 left-0 w-full h-full opacity flex items-center justify-center z-50">
+                get && <div className="absolute top-0 left-0 w-full h-full opacity flex items-center justify-center z-60">
                     <div className="absolute top-[16px] left-[350px] w-[500px] h-[400px] bg-white rounded-xl flex flex-col gap-3 px-6 pb-4">
                         <Title title="Ajouter une collection" />
                         <div >
@@ -123,7 +123,7 @@ export default function ProductLayouts() {
                 </div>
             }
             {
-                open_state && (<div className="absolute top-0 left-0 w-full h-full opacity flex items-center justify-end z-50">
+                open_state && (<div className="absolute top-0 left-0 w-full h-full opacity flex items-center justify-end z-60">
                     <NewProduct />
                 </div>)
             }
@@ -318,19 +318,19 @@ export function AsideList() {
     }, [collections, query])
 
     return (
-        <div className="w-[350px] h-full bg-white border-r border-slate-100 flex flex-col">
+        <div className="w-87.5 relative z-50 h-full bg-white border-r border-slate-100 flex flex-col">
             <div className="px-3 pt-3 flex flex-col">
                 <div className="flex items-center justify-between">
                     <Title title="Produits" />
-                    <button onClick={set} className="h-[36px] pl-4 pr-2 flex text-sm items-center justify-center gap-2 bg-slate-800 text-white rounded-full cursor-pointer">
+                    <button onClick={set} className="h-9 pl-4 pr-2 flex text-sm items-center justify-center gap-2 bg-slate-800 text-white rounded-full cursor-pointer">
                         <span>Ajout. Collect.</span>
                         <FluentAdd32Regular className="h-5 w-5" />
                     </button>
                 </div>
-                <div className="h-[56px] pl-5 pr-2 mt-2 flex items-center bg-slate-100 rounded-full">
+                <div className="h-14 pl-5 pr-2 mt-2 flex items-center bg-slate-100 rounded-full">
                     <div className="flex w-full">
                         <input value={query} onChange={({ target }) => setQuery(target.value)} type="text" className="focus:outline-none flex-1 w-[180px] bg-transparent" placeholder="Chercher une collection" />
-                        <button className="w-[42px] h-[42px] flex items-center justify-center">
+                        <button className="w-10.5 h-10.5 flex items-center justify-center">
                             <FluentSearch32Filled className="h-6 w-6" />
                         </button>
                     </div>
@@ -380,8 +380,15 @@ const GroupeUpdate = ({ data, onClick }: { onClick: () => void, data: Partial<Co
 
 const Items = ({ data, onClick }: { onClick: () => void, data: Partial<Collection> }) => {
     const [isLocate, setIsLocate] = useState(false)
-    const { deleteCollection, sousCollections } = useDatabase()
+    const { deleteCollection, collections, sousCollections, updateSousCollection, deleteSousCollection } = useDatabase()
     const { id } = useParams()
+    const { openFor } = openNewProductWindow()
+
+    const [ctxMenu, setCtxMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+    const [renamingId, setRenamingId] = useState<string | null>(null)
+    const [renameValue, setRenameValue] = useState("")
+    const [moveSubmenuPos, setMoveSubmenuPos] = useState<{ x: number; y: number } | null>(null)
+    const moveButtonRef = useRef<HTMLButtonElement>(null)
 
     const handleDelete = () => {
         deleteCollection(data.id as string)
@@ -392,6 +399,57 @@ const Items = ({ data, onClick }: { onClick: () => void, data: Partial<Collectio
     useEffect(() => {
         setIsLocate(id === data.id)
     }, [id])
+
+    const openContextMenu = (e: React.MouseEvent, sousCollectionId: string) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setMoveSubmenuPos(null)
+        setCtxMenu({ id: sousCollectionId, x: e.clientX, y: e.clientY })
+    }
+
+    const closeContextMenu = () => {
+        setCtxMenu(null)
+        setMoveSubmenuPos(null)
+    }
+
+    const toggleMoveSubmenu = () => {
+        if (moveSubmenuPos) {
+            setMoveSubmenuPos(null)
+            return
+        }
+        const rect = moveButtonRef.current?.getBoundingClientRect()
+        if (!rect) return
+        setMoveSubmenuPos({ x: rect.right + 4, y: rect.top })
+    }
+
+    const startRename = (el: Partial<SousCollection>) => {
+        setRenamingId(el.id as string)
+        setRenameValue(el.nom ?? "")
+        closeContextMenu()
+    }
+
+    const commitRename = async (sousCollectionId: string) => {
+        const value = renameValue.trim()
+        setRenamingId(null)
+        if (!value) return
+        await updateSousCollection(sousCollectionId, { nom: value })
+    }
+
+    const handleDeleteSousCollection = async (el: Partial<SousCollection>) => {
+        closeContextMenu()
+        if (!confirm(`Supprimer la sous-collection "${el.nom}" ?`)) return
+        await deleteSousCollection(el.id as string)
+    }
+
+    const handleAddArticle = (el: Partial<SousCollection>) => {
+        closeContextMenu()
+        openFor(data.id as string, el.id as string)
+    }
+
+    const handleMoveSousCollection = async (el: Partial<SousCollection>, targetCollectionId: string) => {
+        closeContextMenu()
+        await updateSousCollection(el.id as string, { collectionId: targetCollectionId })
+    }
 
     return (
         <div className={`border border-slate-200 relative flex flex-col rounded-xl overflow-hidden ${isLocate ? "bg-blue-50" : ""} select-none`}>
@@ -416,16 +474,100 @@ const Items = ({ data, onClick }: { onClick: () => void, data: Partial<Collectio
 
             <div>
                 {sous_collection.map(el => (
-                    <NavLink
-                        to={{ pathname: `/produits/collections/${data.id}`, search: `?sous_collection=${el.id}` }}
-                        className="px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50"
-                        key={el.id}
-                    >
-                        <span>{el.nom}</span>
-                        <FluentChevronRight32Filled className="h-4 w-4" />
-                    </NavLink>
+                    renamingId === el.id ? (
+                        <div key={el.id} className="px-4 py-2 flex items-center gap-2 text-sm">
+                            <input
+                                autoFocus
+                                value={renameValue}
+                                onChange={({ target }) => setRenameValue(target.value)}
+                                onBlur={() => commitRename(el.id as string)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') { e.preventDefault(); commitRename(el.id as string) }
+                                    if (e.key === 'Escape') setRenamingId(null)
+                                }}
+                                className="flex-1 focus:outline-none border-b border-slate-300 py-1 bg-transparent"
+                            />
+                        </div>
+                    ) : (
+                        <NavLink
+                            to={{ pathname: `/produits/collections/${data.id}`, search: `?sous_collection=${el.id}` }}
+                            className="px-4 py-2 flex items-center justify-between text-sm hover:bg-slate-50"
+                            key={el.id}
+                            onContextMenu={(e) => openContextMenu(e, el.id as string)}
+                        >
+                            <span>{el.nom}</span>
+                            <FluentChevronRight32Filled className="h-4 w-4" />
+                        </NavLink>
+                    )
                 ))}
             </div>
+
+            {ctxMenu && (() => {
+                const target = sous_collection.find(el => el.id === ctxMenu.id)
+                if (!target) return null
+                const otherCollections = collections.filter(c => c.id !== data.id)
+                return (
+                    <>
+                        <div className="fixed inset-0 z-59" onClick={closeContextMenu} onContextMenu={(e) => { e.preventDefault(); closeContextMenu() }} />
+                        <div
+                            className="fixed w-56 bg-white rounded-xl border border-slate-200 shadow-lg z-60 overflow-hidden py-1 text-left"
+                            style={{ top: ctxMenu.y, left: ctxMenu.x }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => handleAddArticle(target)}
+                                className="w-full px-4 py-2 text-sm text-left hover:bg-slate-50 flex items-center gap-2"
+                            >
+                                <FluentAdd32Regular className="h-4 w-4" /> Ajouter un article
+                            </button>
+                            <button
+                                ref={moveButtonRef}
+                                type="button"
+                                disabled={otherCollections.length === 0}
+                                onClick={toggleMoveSubmenu}
+                                className="w-full px-4 py-2 text-sm text-left hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between gap-2"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <FluentFolderLink32Regular className="h-4 w-4" /> Déplacer vers
+                                </span>
+                                <FluentChevronRight32Filled className="h-3 w-3" />
+                            </button>
+                            <div className="my-1 border-t border-slate-100" />
+                            <button
+                                type="button"
+                                onClick={() => startRename(target)}
+                                className="w-full px-4 py-2 text-sm text-left hover:bg-slate-50 flex items-center gap-2"
+                            >
+                                <FluentEdit32Regular className="h-4 w-4" /> Renommer
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteSousCollection(target)}
+                                className="w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                                <FluentDelete32Regular className="h-4 w-4" /> Supprimer
+                            </button>
+                        </div>
+                        {moveSubmenuPos && otherCollections.length > 0 && (
+                            <div
+                                className="fixed w-56 bg-white rounded-xl border border-slate-200 shadow-lg z-60 overflow-hidden py-1 text-left max-h-64 overflow-y-auto"
+                                style={{ top: moveSubmenuPos.y, left: moveSubmenuPos.x }}
+                            >
+                                {otherCollections.map(c => (
+                                    <button
+                                        key={c.id}
+                                        type="button"
+                                        onClick={() => handleMoveSousCollection(target, c.id as string)}
+                                        className="w-full px-4 py-2 text-sm text-left hover:bg-slate-50 truncate"
+                                    >
+                                        {c.nom}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )
+            })()}
         </div>
     )
 }

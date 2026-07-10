@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Article, CanalEnvoiDevis, Client, DevisEnvoi, GroupeDevis, LigneDocument, SousGroupeDevis } from '../Databases/db.d';
 import { formatDate, formatFCFA } from '../libs/format';
-import { FluentAdd32Regular, FluentDelete32Regular, FluentMoreHorizontal32Regular } from '../libs/icons';
+import { FluentAdd32Regular, FluentDelete32Regular, FluentMoreHorizontal32Regular, RiCloseLine } from '../libs/icons';
 import ClientFormModal from './client_form_modal';
 import { useAlerts } from './alerts';
 import Switch from './switch';
@@ -104,6 +104,73 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
         onChange({ ...value, lignes: [...value.lignes, makeLigneFromArticle(article, target)] });
     };
 
+    const insertEmptyAt = (subset: LigneDocument[], index: number) => {
+        const target: LigneTarget = subset[0] ? { groupeId: subset[0].groupeId, sousGroupeId: subset[0].sousGroupeId } : {};
+        const emptyLigne: LigneDocument = {
+            id: crypto.randomUUID(),
+            articleId: '',
+            designation: '',
+            reference: '',
+            quantite: 1,
+            unite: 'pièce' as any,
+            prixUnitaireHT: 0,
+            tauxTVA: 0,
+            prixUnitaireTTC: 0,
+            montantTotalHT: 0,
+            montantTotalTTC: 0,
+            remise: 0,
+        };
+        if (target.groupeId) emptyLigne.groupeId = target.groupeId;
+        if (target.sousGroupeId) emptyLigne.sousGroupeId = target.sousGroupeId;
+
+        let next: LigneDocument[];
+        if (index < subset.length) {
+            const fullIdx = value.lignes.findIndex((l) => l.id === subset[index].id);
+            next = [...value.lignes];
+            next.splice(fullIdx, 0, emptyLigne);
+        } else if (subset.length > 0) {
+            const fullIdx = value.lignes.findIndex((l) => l.id === subset[subset.length - 1].id);
+            next = [...value.lignes];
+            next.splice(fullIdx + 1, 0, emptyLigne);
+        } else {
+            next = [...value.lignes, emptyLigne];
+        }
+        onChange({ ...value, lignes: next });
+    };
+
+    const duplicateLigne = (id: string) => {
+        const idx = value.lignes.findIndex((l) => l.id === id);
+        if (idx < 0) return;
+        const copy: LigneDocument = { ...value.lignes[idx], id: crypto.randomUUID() };
+        const next = [...value.lignes];
+        next.splice(idx + 1, 0, copy);
+        onChange({ ...value, lignes: next });
+    };
+
+    const moveLigne = (subset: LigneDocument[], id: string, direction: -1 | 1) => {
+        const idx = subset.findIndex((l) => l.id === id);
+        const targetIdx = idx + direction;
+        if (idx < 0 || targetIdx < 0 || targetIdx >= subset.length) return;
+        const aId = subset[idx].id;
+        const bId = subset[targetIdx].id;
+        const next = [...value.lignes];
+        const aFull = next.findIndex((l) => l.id === aId);
+        const bFull = next.findIndex((l) => l.id === bId);
+        [next[aFull], next[bFull]] = [next[bFull], next[aFull]];
+        onChange({ ...value, lignes: next });
+    };
+
+    const reorderLigne = (fromId: string, toId: string) => {
+        if (fromId === toId) return;
+        const from = value.lignes.findIndex((l) => l.id === fromId);
+        const to = value.lignes.findIndex((l) => l.id === toId);
+        if (from < 0 || to < 0) return;
+        const next = [...value.lignes];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        onChange({ ...value, lignes: next });
+    };
+
     const addGroupe = () => {
         const groupe: GroupeDevis = {
             id: crypto.randomUUID(),
@@ -202,7 +269,7 @@ export default function DevisForm({ value, onChange, clients, articles, readOnly
 
     const afficherTVA = value.afficherTVA !== false;
     const afficherTVALignes = afficherTVA && value.afficherTVALignes !== false;
-    const ligneActions = { updateLigne, removeLigne, readOnly, afficherTVA: afficherTVALignes };
+    const ligneActions = { updateLigne, removeLigne, insertEmptyAt, duplicateLigne, moveLigne, reorderLigne, readOnly, afficherTVA: afficherTVALignes };
     const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
 
     const toggleAfficherTVA = () => {
@@ -545,14 +612,21 @@ function canalLabel(c: CanalEnvoiDevis): string {
 type LigneActions = {
     updateLigne: (id: string, patch: Partial<LigneDocument>) => void;
     removeLigne: (id: string) => void;
+    insertEmptyAt: (subset: LigneDocument[], index: number) => void;
+    duplicateLigne: (id: string) => void;
+    moveLigne: (subset: LigneDocument[], id: string, direction: -1 | 1) => void;
+    reorderLigne: (fromId: string, toId: string) => void;
     readOnly?: boolean;
     afficherTVA?: boolean;
 };
 
 function LignesBlock({ lignes, actions }: { lignes: LigneDocument[]; actions: LigneActions }) {
-    const { updateLigne, removeLigne, readOnly, afficherTVA = true } = actions;
+    const { readOnly, afficherTVA = true, reorderLigne, insertEmptyAt } = actions;
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [overId, setOverId] = useState<string | null>(null);
+
     return (
-        <ScrollArea className="overflow-x-auto">
+        <div>
             <table className="w-full text-sm">
                 <thead className="text-xs uppercase text-gray-400">
                     <tr>
@@ -562,42 +636,167 @@ function LignesBlock({ lignes, actions }: { lignes: LigneDocument[]; actions: Li
                         {afficherTVA && <th className="text-center pb-2 font-medium w-20">TVA %</th>}
                         <th className="text-center pb-2 font-medium w-20">Remise %</th>
                         <th className="text-right pb-2 font-medium w-20">Total TTC</th>
-                        {!readOnly && <th className="w-8"></th>}
                     </tr>
                 </thead>
                 <tbody>
-                    {lignes.map((l) => (
-                        <tr key={l.id} className="border-t border-slate-100">
-                            <td className="py-2 pr-2">
-                                <input
-                                    disabled={readOnly}
-                                    value={l.designation}
-                                    onChange={(e) => updateLigne(l.id, { designation: e.target.value })}
-                                    className="w-full py-1 bg-transparent border-b border-transparent focus:outline-none focus:border-slate-300"
-                                />
-                                <div className="text-[10px] text-gray-400">{l.reference} · {l.unite}</div>
-                            </td>
-                            <td className="py-2 text-center">
-                                <NumberCell value={l.quantite} disabled={readOnly} onChange={(v) => updateLigne(l.id, { quantite: v })} />
-                            </td>
-                            <td className="py-2 text-center text-gray-600">{formatFCFA(l.prixUnitaireHT)}</td>
-                            {afficherTVA && <td className="py-2 text-center text-gray-600">{l.tauxTVA}%</td>}
-                            <td className="py-2 text-center">
-                                <NumberCell value={l.remise} disabled={readOnly} onChange={(v) => updateLigne(l.id, { remise: v })} />
-                            </td>
-                            <td className="py-2 text-right font-medium">{formatFCFA(l.montantTotalTTC)}</td>
-                            {!readOnly && (
-                                <td className="py-2 text-right">
-                                    <button onClick={() => removeLigne(l.id)} className="text-gray-400 hover:text-red-600">
-                                        <FluentDelete32Regular className="h-4 w-4" />
-                                    </button>
-                                </td>
-                            )}
-                        </tr>
+                    {lignes.map((l, idx) => (
+                        <LigneRow
+                            key={l.id}
+                            ligne={l}
+                            index={idx}
+                            total={lignes.length}
+                            subset={lignes}
+                            actions={actions}
+                            isDragging={draggingId === l.id}
+                            isOver={overId === l.id && draggingId !== null && draggingId !== l.id}
+                            onDragStart={() => setDraggingId(l.id)}
+                            onDragEnd={() => { setDraggingId(null); setOverId(null); }}
+                            onDragOver={() => setOverId(l.id)}
+                            onDropOn={() => {
+                                if (draggingId) reorderLigne(draggingId, l.id);
+                                setDraggingId(null); setOverId(null);
+                            }}
+                        />
                     ))}
                 </tbody>
             </table>
-        </ScrollArea>
+            {!readOnly && lignes.length > 0 && (
+                <button
+                    type="button"
+                    onClick={() => insertEmptyAt(lignes, lignes.length)}
+                    className="mt-2 text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                >
+                    <FluentAdd32Regular className="h-3 w-3" />
+                    Insérer une ligne vide
+                </button>
+            )}
+        </div>
+    );
+}
+
+function LigneRow({
+    ligne: l,
+    index,
+    total,
+    subset,
+    actions,
+    isDragging,
+    isOver,
+    onDragStart,
+    onDragEnd,
+    onDragOver,
+    onDropOn,
+}: {
+    ligne: LigneDocument;
+    index: number;
+    total: number;
+    subset: LigneDocument[];
+    actions: LigneActions;
+    isDragging: boolean;
+    isOver: boolean;
+    onDragStart: () => void;
+    onDragEnd: () => void;
+    onDragOver: () => void;
+    onDropOn: () => void;
+}) {
+    const { updateLigne, removeLigne, insertEmptyAt, duplicateLigne, moveLigne, readOnly, afficherTVA = true } = actions;
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    return (
+        <tr
+            className={`group relative row border-t border-slate-100 transition-all duration-150 ${isDragging ? 'opacity-40' : ''} ${isOver ? 'bg-blue-50/50 border-t-2 border-t-blue-400' : ''}`}
+            onDragOver={(e) => { if (!readOnly) { e.preventDefault(); onDragOver(); } }}
+            onDrop={(e) => { if (!readOnly) { e.preventDefault(); onDropOn(); } }}
+            style={{ borderSpacing: "5px 0" }}
+        >
+            <td className="py-2 pr-2 relative">
+                {!readOnly && (
+                    <button
+                        type="button"
+                        className="absolute bg-slate-700 hover:bg-slate-900 text-white shadow-2xs top-1/2 -translate-y-1/2 -left-9 w-8 h-8 rounded-full flex items-center justify-center  cursor-grab active:cursor-grabbing select-none opacity-0 group-hover:opacity-100 transition-opacity"
+                        draggable
+                        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+                        onDragEnd={onDragEnd}
+                        title="Glisser pour réordonner"
+                    >
+                        ⋮⋮
+                    </button>
+                )}
+                <input
+                    disabled={readOnly}
+                    value={l.designation}
+                    onChange={(e) => updateLigne(l.id, { designation: e.target.value })}
+                    className="w-full py-1 bg-transparent border-b border-transparent focus:outline-none focus:border-slate-300"
+                />
+                <div className="text-[10px] text-gray-400">{l.reference} · {l.unite}</div>
+            </td>
+            <td className="py-2 text-center">
+                <NumberCell value={l.quantite} disabled={readOnly} onChange={(v) => updateLigne(l.id, { quantite: v })} />
+            </td>
+            <td className="py-2 text-center text-gray-600">{formatFCFA(l.prixUnitaireHT)}</td>
+            {afficherTVA && <td className="py-2 text-center text-gray-600">{l.tauxTVA}%</td>}
+            <td className="py-2 text-center">
+                <NumberCell value={l.remise} disabled={readOnly} onChange={(v) => updateLigne(l.id, { remise: v })} />
+            </td>
+            <td className="py-2 text-right font-medium relative">
+                {formatFCFA(l.montantTotalTTC)}
+                {!readOnly && (
+                    <div className={`absolute z-30 top-1/2 -translate-y-1/2 -right-10 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <button
+                            type="button"
+                            onClick={() => setMenuOpen((v) => !v)}
+                            className="h-8 w-8 rounded-full bg-slate-700 shadow-2xs hover:bg-slate-900 text-white inline-flex items-center justify-center transition-colors"
+                            aria-label="Options de la ligne"
+                        >
+                            {menuOpen ? <RiCloseLine className="h-5 w-5 text-white" /> : <FluentMoreHorizontal32Regular className="h-4 w-4 text-white" />}
+                        </button>
+                        {menuOpen && (
+                            <>
+                                <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                                <div className="absolute  right-0 mt-1 w-56 bg-white rounded-xl border border-slate-200 shadow-lg z-40 overflow-hidden py-1 text-left">
+                                    <MenuItem onClick={() => { insertEmptyAt(subset, index); setMenuOpen(false); }}>
+                                        Insérer une ligne au-dessus
+                                    </MenuItem>
+                                    <MenuItem onClick={() => { insertEmptyAt(subset, index + 1); setMenuOpen(false); }}>
+                                        Insérer une ligne en-dessous
+                                    </MenuItem>
+                                    <MenuItem onClick={() => { duplicateLigne(l.id); setMenuOpen(false); }}>
+                                        Dupliquer
+                                    </MenuItem>
+                                    <div className="my-1 border-t border-slate-100" />
+                                    <MenuItem onClick={() => { moveLigne(subset, l.id, -1); setMenuOpen(false); }} disabled={index === 0}>
+                                        Monter
+                                    </MenuItem>
+                                    <MenuItem onClick={() => { moveLigne(subset, l.id, 1); setMenuOpen(false); }} disabled={index === total - 1}>
+                                        Descendre
+                                    </MenuItem>
+                                    <div className="my-1 border-t border-slate-100" />
+                                    <MenuItem onClick={() => { removeLigne(l.id); setMenuOpen(false); }} danger>
+                                        <span className="inline-flex items-center gap-2">
+                                            <FluentDelete32Regular className="h-4 w-4" />
+                                            Supprimer
+                                        </span>
+                                    </MenuItem>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+            </td>
+        </tr>
+    );
+}
+
+function MenuItem({ children, onClick, disabled, danger }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`w-full px-4 py-2 text-sm text-left hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed ${danger ? 'text-red-600 hover:bg-red-50' : ''}`}
+        >
+            {children}
+        </button>
     );
 }
 

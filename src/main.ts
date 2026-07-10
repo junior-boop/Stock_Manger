@@ -528,11 +528,11 @@ async function renderPdfToFile(html: string, filename: string, dir: string): Pro
 }
 
 ipcMain.handle('pdf:generateDevis', async (_event, html: string, filename: string) =>
-  renderPdfToFile(html, filename, devisPdfDir),
+  await renderPdfToFile(html, filename, devisPdfDir),
 );
 
 ipcMain.handle('pdf:generateFacture', async (_event, html: string, filename: string) =>
-  renderPdfToFile(html, filename, facturesPdfDir),
+  await renderPdfToFile(html, filename, facturesPdfDir),
 );
 
 // ======================== IPC HANDLERS - EXPORT EXCEL ========================
@@ -613,14 +613,14 @@ function migrateCompanyJsonToDb() {
 }
 
 ipcMain.handle('entreprises:get', async () => {
-  const fromDb = getEntreprise();
+  const fromDb = await getEntreprise();
   if (fromDb) {
     const { id, ...data } = fromDb;
     return data;
   }
   // Aucune donnée en base → tenter la migration depuis le JSON
   migrateCompanyJsonToDb();
-  const afterMigration = getEntreprise();
+  const afterMigration = await getEntreprise();
   if (afterMigration) {
     const { id, ...data } = afterMigration;
     return data;

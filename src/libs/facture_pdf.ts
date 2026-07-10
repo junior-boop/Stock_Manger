@@ -14,6 +14,7 @@ type CompanyPdfInfo = {
     nom: string;
     adresse: string;
     telephone: string;
+    matricule: string;
     email: string;
     logoDataUrl: string;
     notesDevis: string;
@@ -28,6 +29,7 @@ let COMPANY: CompanyPdfInfo = {
     telephone: '+237 6XX XX XX XX',
     email: 'contact@kataleya.com',
     logoDataUrl: '',
+    matricule: '',
     notesDevis: '',
     notesFacture: '',
     conditionsPaiement: '',
@@ -106,9 +108,6 @@ function renderClientBlock(client: Client | undefined): string {
     return `
         <div class="block-title">Client</div>
         <div class="strong">${esc(name)}</div>
-        ${addrLine ? `<div>${esc(addrLine)}</div>` : ''}
-        ${client.email ? `<div>${esc(client.email)}</div>` : ''}
-        ${client.telephone ? `<div>${esc(client.telephone)}</div>` : ''}
     `;
 }
 
@@ -119,10 +118,9 @@ function renderLigneRow(l: LigneDocument, showTVA: boolean): string {
                 <div class="strong">${esc(l.designation)}</div>
                 <div class="muted small">${esc(l.reference)}</div>
             </td>
-            <td class="center">${l.quantite} ${esc(l.unite)}</td>
+            <td class="center">${l.quantite}</td>
             <td class="center">${formatFCFA(l.prixUnitaireHT)}</td>
-            <td class="center">${l.remise ? l.remise + '%' : '—'}</td>
-            ${showTVA ? `<td class="center">${l.tauxTVA}%</td>` : ''}
+            <td class="center">${l.remise ? l.remise : '—'}</td>
             <td class="right strong">${formatFCFA(l.montantTotalTTC)}</td>
         </tr>
     `;
@@ -133,11 +131,10 @@ function renderLignesTable(lignes: LigneDocument[], showTVA: boolean): string {
         <thead>
             <tr>
                 <th class="designation">Désignation</th>
-                <th class="center" style="text-align: center;">Qté</th>
-                <th class="center" style="text-align: center;">P.U. HT</th>
-                <th class="center" style="text-align: center;">Remise</th>
-                ${showTVA ? `<th class="center" style="text-align: center;">TVA</th>` : ''}
-                <th class="right" style="text-align: right;">Total TTC</th>
+                <th class="center" style = "text-align: center; width : 7.5%;">Qté</th>
+                <th class="center" style = "text-align: center;">P.U. HT</th>
+                <th class="center" style = "text-align: center; width : 7.5%">Remise %</th>
+                <th class="right" style = "text-align: right; width : 10%;">Total TTC</th>
             </tr>
         </thead>
         <tbody>${lignes.map((l) => renderLigneRow(l, showTVA)).join('')}</tbody>
@@ -198,7 +195,7 @@ export function buildRecuPaiementHTML(
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(COMPANY.nom)} — ${esc(numeroRecu)}${COMPANY.telephone ? ` — ${esc(COMPANY.telephone)}` : ''}</title>
+<title>${esc(COMPANY.nom)} | ${esc(numeroRecu)}${COMPANY.telephone ? ` | ${esc(COMPANY.telephone)}` : ''}${COMPANY.matricule ? ` | ${esc(COMPANY.matricule)}` : ''}</title>
 <style>
     @page { margin: 15mm 15mm 5mm 15mm; }
     * { box-sizing: border-box; }
@@ -221,6 +218,7 @@ export function buildRecuPaiementHTML(
     .block-title { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 6px; font-weight: 600; }
     .strong { font-weight: 600; }
     .muted { color: #64748b; }
+    .designation { text-align: left; min-width: 50%; }
     .montant-box { margin-top: 22px; padding: 18px 20px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; text-align: center; }
     .montant-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #047857; font-weight: 600; }
     .montant-value { font-size: 26px; font-weight: 700; color: #065f46; margin-top: 4px; letter-spacing: -0.5px; }
@@ -237,13 +235,12 @@ export function buildRecuPaiementHTML(
 </head>
 <body>
     <div class="header">
-        <div style="display:flex;align-items:center;gap:14px;">
-            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:56px;max-width:140px;object-fit:contain;" />` : ''}
+       <div style="display:flex;align-items:center;gap:14px;">
             <div>
-                <div class="company-name">${esc(COMPANY.nom)}</div>
+                ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(COMPANY.nom)}</div>`}
                 <div class="company-info">
                     ${esc(COMPANY.adresse)}<br/>
-                    ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+                    ${esc(COMPANY.telephone)}<br/>${esc(COMPANY.email)}
                     ${renderCustomFields()}
                 </div>
             </div>
@@ -258,9 +255,6 @@ export function buildRecuPaiementHTML(
     <div class="parties">
         <div class="block-title">Reçu de</div>
         <div class="strong">${esc(clientName)}</div>
-        ${addrLine ? `<div>${esc(addrLine)}</div>` : ''}
-        ${client?.email ? `<div>${esc(client.email)}</div>` : ''}
-        ${client?.telephone ? `<div>${esc(client.telephone)}</div>` : ''}
     </div>
 
     <div class="montant-box">
@@ -339,7 +333,7 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(COMPANY.nom)} — ${esc(facture.numero)}${COMPANY.telephone ? ` — ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` — ${esc(COMPANY.email)}` : ''}</title>
+<title>${esc(COMPANY.nom)} | ${esc(facture.numero)}${COMPANY.telephone ? ` | ${esc(COMPANY.telephone)}` : ''}${COMPANY.matricule ? ` | ${esc(COMPANY.matricule)}` : ''}</title>
 <style>
     @page { margin: 15mm 15mm 5mm 15mm; }
     * { box-sizing: border-box; }
@@ -379,7 +373,7 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
     table.lignes, table.paiements { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
     table.lignes th, table.paiements th { text-align: left; background: #f1f5f9; padding: 6px 8px; font-size: 9px; text-transform: uppercase; color: #475569; font-weight: 600; border-bottom: 1px solid #cbd5e1; }
     table.lignes td, table.paiements td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
-    .designation { text-align: left; width: 25%; }
+    .designation { text-align: left; min-width: 50%; }
     .right { text-align: right; }
     .center { text-align: center; }
     .totals { margin-top: 20px; display: flex; justify-content: flex-end; }
@@ -398,13 +392,12 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
 </head>
 <body>
     <div class="header">
-        <div style="display:flex;align-items:center;gap:14px;">
-            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:56px;max-width:140px;object-fit:contain;" />` : ''}
+         <div style="display:flex;align-items:center;gap:14px;">
             <div>
-                <div class="company-name">${esc(COMPANY.nom)}</div>
+                ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(COMPANY.nom)}</div>`}
                 <div class="company-info">
                     ${esc(COMPANY.adresse)}<br/>
-                    ${esc(COMPANY.telephone)} · ${esc(COMPANY.email)}
+                    ${esc(COMPANY.telephone)}<br/>${esc(COMPANY.email)}
                     ${renderCustomFields()}
                 </div>
             </div>
@@ -475,15 +468,18 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
             ` : ''}
         </div>
     ` : ''}
-    <div class="fixed-footer">
-        <div class="fi-left">
-            ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:24px;max-width:70px;object-fit:contain;" />` : ''}
-            <div>
-                <div class="fi-name">${esc(COMPANY.nom)}</div>
-                <div>${esc(COMPANY.adresse)}${COMPANY.telephone ? ` · ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` · ${esc(COMPANY.email)}` : ''}</div>
-            </div>
-        </div>
-    </div>
+    
 </body>
 </html>`;
 }
+
+
+// <div class="fixed-footer">
+//         <div class="fi-left">
+//             ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:24px;max-width:70px;object-fit:contain;" />` : ''}
+//             <div>
+//                 <div class="fi-name">${esc(COMPANY.nom)}</div>
+//                 <div>${esc(COMPANY.adresse)}${COMPANY.telephone ? ` · ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` · ${esc(COMPANY.email)}` : ''}</div>
+//             </div>
+//         </div>
+//     </div>

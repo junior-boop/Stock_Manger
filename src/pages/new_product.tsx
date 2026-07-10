@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom';
 import ScrollArea from '../components/scroll_area';
 
 export default function NewProduct() {
-    const { open_state, open_set } = openNewProductWindow();
+    const { open_state, open_set, presetCollectionId, presetSousCollectionId } = openNewProductWindow();
     const { collections, sousCollections, createArticle, updateCollection, isLoading, articles } = useDatabase();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { id } = useParams()
@@ -15,8 +15,8 @@ export default function NewProduct() {
     const [isDragging, setIsDragging] = useState(false);
 
     const [formData, setFormData] = useState({
-        collectionId: id,
-        sousCollectionId: '',
+        collectionId: presetCollectionId || id,
+        sousCollectionId: presetSousCollectionId || '',
         nom: '',
         description: '',
         reference: '',

@@ -149,7 +149,7 @@ function UserAvatar({
                 <PresenceDot status={presence} />
             </button>
             {open && (
-                <div className="absolute bottom-0 left-14 w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-3 z-50">
+                <div className="absolute bottom-0 left-14 w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-3 z-65">
                     <div className="text-sm font-semibold">{user.prenom} {user.nom}</div>
                     <div className="text-xs text-gray-500 truncate">{user.email}</div>
                     <div className="text-xs text-gray-400 mt-1">{user.role}</div>

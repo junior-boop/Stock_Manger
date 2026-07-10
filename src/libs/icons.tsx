@@ -395,6 +395,18 @@ export function FluentBuildingShop24Regular(props: SVGProps<SVGSVGElement>) {
 }
 
 
+export function IconGridView(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" {...props}><rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor" /><rect x="13" y="3" width="8" height="8" rx="2" fill="currentColor" /><rect x="3" y="13" width="8" height="8" rx="2" fill="currentColor" /><rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor" /></svg>
+    )
+}
+
+export function IconListView(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" {...props}><rect x="3" y="4" width="4" height="4" rx="1" fill="currentColor" /><rect x="3" y="10" width="4" height="4" rx="1" fill="currentColor" /><rect x="3" y="16" width="4" height="4" rx="1" fill="currentColor" /><rect x="9.5" y="4.5" width="11.5" height="3" rx="1" fill="currentColor" /><rect x="9.5" y="10.5" width="11.5" height="3" rx="1" fill="currentColor" /><rect x="9.5" y="16.5" width="11.5" height="3" rx="1" fill="currentColor" /></svg>
+    )
+}
+
 export function RiCloseLine(props: SVGProps<SVGSVGElement>) {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>{/* Icon from Remix Icon by Remix Design - https://github.com/Remix-Design/RemixIcon/blob/master/License */}<path fill="currentColor" d="m12 10.587l4.95-4.95l1.414 1.414l-4.95 4.95l4.95 4.95l-1.415 1.414l-4.95-4.95l-4.949 4.95l-1.414-1.415l4.95-4.95l-4.95-4.95L7.05 5.638z" /></svg>

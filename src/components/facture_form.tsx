@@ -466,7 +466,7 @@ function LigneRow({
                 {!readOnly && (
                     <button
                         type="button"
-                        className="absolute bg-white shadow-2xs top-1/2 -translate-y-1/2 -left-9 w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-gray-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing select-none opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute bg-slate-700 hover:bg-slate-900 text-white shadow-2xs top-1/2 -translate-y-1/2 -left-9 w-8 h-8 rounded-full flex items-center justify-center  cursor-grab active:cursor-grabbing select-none opacity-0 group-hover:opacity-100 transition-opacity"
                         draggable
                         onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
                         onDragEnd={onDragEnd}
@@ -533,16 +533,16 @@ function LigneRow({
             <td className="py-2 text-right font-medium relative">
                 {formatFCFA(l.montantTotalTTC)}
                 {!readOnly && (
-                    <div className={`absolute top-1/2 -translate-y-1/2 -right-10 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <div className={`absolute z-30 top-1/2 -translate-y-1/2 -right-10 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                         <button
                             type="button"
                             onClick={() => setMenuOpen((v) => !v)}
-                            className="h-8 w-8 rounded-full bg-white shadow-2xs hover:bg-slate-100 text-gray-400 hover:text-gray-700 inline-flex items-center justify-center transition-colors"
+                            className="h-8 w-8 rounded-full bg-slate-700 shadow-2xs hover:bg-slate-900 text-white inline-flex items-center justify-center transition-colors"
                             aria-label="Options de la ligne"
                         >
 
                             {
-                                menuOpen ? <RiCloseLine className="h-5 w-5" /> : <FluentMoreHorizontal32Regular className="h-4 w-4" />
+                                menuOpen ? <RiCloseLine className="h-5 w-5 text-white" /> : <FluentMoreHorizontal32Regular className="h-4 w-4 text-white" />
                             }
                         </button>
                         {menuOpen && (
