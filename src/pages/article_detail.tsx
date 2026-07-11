@@ -346,9 +346,12 @@ export default function ArticleDetail() {
                 <div className="h-[72px]"></div>
 
                 <div className="px-10 py-4 border-b border-slate-100 flex justify-between items-center">
-                    <NavLink to={`/produits/collections/${article.collectionId}`} className="text-blue-600 hover:underline flex items-center gap-4">
+                    <NavLink
+                        to={`/produits/collections/${article.collectionId}${article.sousCollectionId ? `?sous_collection=${article.sousCollectionId}` : ''}`}
+                        className="text-blue-600 hover:underline flex items-center gap-4"
+                    >
                         <FluentChevronLeft32Filled className='h-5 w-5' />
-                        Retour à {collection?.nom}
+                        Retour à {sousCollection?.nom ?? collection?.nom}
                     </NavLink>
                     {!isEditing && (
                         <button

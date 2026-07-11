@@ -5,6 +5,8 @@ import { FluentAdd32Regular, FluentBox32Filled, FluentDelete32Regular, FluentSea
 import { openNewProductWindow, OpenSousCollection } from "../context/open_product"
 import { Article, SousCollection } from "../Databases/db.d"
 
+const VIEW_MODE_KEY = "produits_view_mode"
+
 export default function ProductPage() {
     const [isLoading, setLoading] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
@@ -31,7 +33,13 @@ export default function ProductPage() {
         ordre: 0
     })
 
-    const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+    const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+        return localStorage.getItem(VIEW_MODE_KEY) === "list" ? "list" : "grid"
+    })
+
+    useEffect(() => {
+        localStorage.setItem(VIEW_MODE_KEY, viewMode)
+    }, [viewMode])
     const [searchQuery, setSearchQuery] = useState("")
     const [searchOpen, setSearchOpen] = useState(false)
     const normalizedQuery = searchQuery.trim().toLowerCase()
