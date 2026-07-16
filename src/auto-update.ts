@@ -125,7 +125,7 @@ export class AutoUpdateService {
       this.emit();
     } catch (e) {
       this.status.checking = false;
-      this.status.error = e instanceof Error ? e.message : String(e);
+      this.status.error = this.describeError(e);
       this.status.lastChecked = Date.now();
       this.emit();
     }
@@ -148,30 +148,23 @@ export class AutoUpdateService {
       if (!asset) throw new Error(`Aucun fichier d'installation trouvé pour ${ext}`);
 
       const downloadUrl = asset.browser_download_url;
-      const res = await fetch(downloadUrl);
-      if (!res.ok) throw new Error(`download HTTP ${res.status}`);
+      const filePath = path.join(this.downloadDir, `kataleya-update-${this.status.version}${ext}`);
 
-      const contentLength = res.headers.get("content-length");
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
-      const chunks: Buffer[] = [];
-      let received = 0;
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("no response body");
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(Buffer.from(value));
-        received += value.length;
-        if (total) {
-          this.status.progress = Math.round((received / total) * 100);
-          this.emit();
+      const maxAttempts = 3;
+      let lastErr: unknown = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await this.downloadToFile(downloadUrl, filePath);
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 1000 * attempt));
+          }
         }
       }
-
-      const filePath = path.join(this.downloadDir, `kataleya-update-${this.status.version}${ext}`);
-      fs.writeFileSync(filePath, Buffer.concat(chunks));
+      if (lastErr) throw lastErr;
 
       this.status.downloading = false;
       this.status.downloaded = true;
@@ -183,9 +176,42 @@ export class AutoUpdateService {
       }
     } catch (e) {
       this.status.downloading = false;
-      this.status.error = e instanceof Error ? e.message : String(e);
+      this.status.error = this.describeError(e);
       this.emit();
     }
+  }
+
+  private async downloadToFile(url: string, filePath: string): Promise<void> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`download HTTP ${res.status}`);
+
+    const contentLength = res.headers.get("content-length");
+    const total = contentLength ? parseInt(contentLength, 10) : 0;
+    let received = 0;
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("no response body");
+
+    const tmpPath = `${filePath}.part`;
+    const out = fs.createWriteStream(tmpPath);
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        await new Promise<void>((resolve, reject) => {
+          out.write(Buffer.from(value), (err) => (err ? reject(err) : resolve()));
+        });
+        received += value.length;
+        if (total) {
+          this.status.progress = Math.round((received / total) * 100);
+          this.emit();
+        }
+      }
+    } finally {
+      await new Promise<void>((resolve) => out.end(resolve));
+    }
+
+    fs.renameSync(tmpPath, filePath);
   }
 
   quitAndInstall(): void {
@@ -208,6 +234,15 @@ export class AutoUpdateService {
         if (err) console.error("[auto-update] open failed", err);
       });
     }
+  }
+
+  private describeError(e: unknown): string {
+    if (e instanceof Error) {
+      const cause = (e as Error & { cause?: unknown }).cause;
+      const causeMsg = cause instanceof Error ? cause.message : (typeof cause === 'string' ? cause : null);
+      return causeMsg ? `${e.message}: ${causeMsg}` : e.message;
+    }
+    return String(e);
   }
 
   private compareVersions(a: string, b: string): number {
