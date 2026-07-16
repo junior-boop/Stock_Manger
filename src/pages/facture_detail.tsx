@@ -175,7 +175,11 @@ export default function FactureDetailPage() {
             const numeroRecu = `RECU-${current.numero}-${seq}`;
             const cumul = sortedAsc.slice(0, idx + 1).reduce((s, p) => s + (p.montant || 0), 0);
             const factureSnapshot: Facture = { ...current, montantPayé: cumul };
-            const html = buildRecuPaiementHTML(factureSnapshot, client, paiement, numeroRecu, adminLookup);
+            const companyInfo = await window.db.entreprises.get();
+            if (!companyInfo || !companyInfo.setupDone) {
+                throw new Error("Informations de l'entreprise manquantes. Complétez-les dans Paramètres avant de générer un PDF.");
+            }
+            const html = buildRecuPaiementHTML(factureSnapshot, client, paiement, numeroRecu, companyInfo, adminLookup);
             const filePath = await window.pdf.generateFacture(html, numeroRecu);
             await window.shell.openPath(filePath);
             success('Reçu généré', numeroRecu);
@@ -188,7 +192,11 @@ export default function FactureDetailPage() {
         setPdfBusy(true);
         try {
             const client = clients.find((c) => c.id === current.clientId);
-            const html = buildFactureHTML(current, client, adminLookup);
+            const companyInfo = await window.db.entreprises.get();
+            if (!companyInfo || !companyInfo.setupDone) {
+                throw new Error("Informations de l'entreprise manquantes. Complétez-les dans Paramètres avant de générer un PDF.");
+            }
+            const html = buildFactureHTML(current, client, companyInfo, adminLookup);
             const filePath = await window.pdf.generateFacture(html, current.numero);
             await window.shell.openPath(filePath);
             success('PDF généré', current.numero);

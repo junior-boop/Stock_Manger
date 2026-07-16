@@ -4,10 +4,9 @@ import { Administrateur, RoleAdmin, Technicien } from '../Databases/db.d';
 import { useAuth, usePermissions } from '../auth/authProvider';
 import { syncClient } from '../context/sync_client';
 import { useAlerts } from '../components/alerts';
-import { setDevisCompanyInfo } from '../libs/devis_pdf';
-import { setFactureCompanyInfo } from '../libs/facture_pdf';
 import ReapproModal from '../components/reappro_modal';
 import ScrollArea from '../components/scroll_area';
+import { SvgSpinners180Ring, RiEyeFill, RiEyeOffFill } from '../libs/icons';
 
 type Section = 'entreprise' | 'numerotation' | 'sauvegarde' | 'permissions' | 'journal' | 'utilisateurs' | 'techniciens' | 'stock';
 
@@ -701,9 +700,9 @@ function EntrepriseSection() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const next = await window.db.entreprises.update(form);
-            setDevisCompanyInfo(next);
-            setFactureCompanyInfo(next);
+            const setupDone = !!form.nom.trim();
+            await window.db.entreprises.update({ ...form, setupDone });
+            setForm((f) => ({ ...f, setupDone }));
             window.dispatchEvent(new Event('company:changed'));
             success('Informations enregistrées', 'Les informations de l\'entreprise ont été mises à jour.');
         } catch (e) {
@@ -958,9 +957,7 @@ function NumerotationSection() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const next = await window.db.entreprises.update(form);
-            setDevisCompanyInfo(next);
-            setFactureCompanyInfo(next);
+            await window.db.entreprises.update(form);
             window.dispatchEvent(new Event('company:changed'));
             success('Numérotation enregistrée', 'Les paramètres de numérotation ont été mis à jour.');
         } catch {
@@ -1379,7 +1376,9 @@ function SauvegardeSection() {
     const [serverUrl, setServerUrl] = useState('');
     const [email, setEmail] = useState('');
     const [motDePasse, setMotDePasse] = useState('');
+    const [pwVisible, setPwVisible] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 
     useEffect(() => {
         window.syncApi.getConfig().then((c) => {
@@ -1387,6 +1386,35 @@ function SauvegardeSection() {
             setServerUrl(c.serverUrl);
         });
     }, []);
+
+    useEffect(() => {
+        const unsub = window.updateApi.onStatus(setUpdateStatus);
+        return unsub;
+    }, []);
+
+    const handleCheckUpdate = async () => {
+        try {
+            await window.updateApi.check();
+        } catch {
+            notifyError('Mise à jour', 'Impossible de vérifier les mises à jour.');
+        }
+    };
+
+    const handleDownloadUpdate = async () => {
+        try {
+            await window.updateApi.download();
+        } catch {
+            notifyError('Mise à jour', 'Échec du téléchargement de la mise à jour.');
+        }
+    };
+
+    const handleInstallUpdate = async () => {
+        try {
+            await window.updateApi.install();
+        } catch {
+            notifyError('Mise à jour', "Échec de l'installation de la mise à jour.");
+        }
+    };
 
     const saveUrl = async () => {
         setBusy(true);
@@ -1492,13 +1520,22 @@ function SauvegardeSection() {
                             placeholder="email@kataleya.com"
                             className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
                         />
-                        <input
-                            type="password"
-                            value={motDePasse}
-                            onChange={(e) => setMotDePasse(e.target.value)}
-                            placeholder="Mot de passe"
-                            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                        />
+                        <div className="relative">
+                            <input
+                                type={pwVisible ? 'text' : 'password'}
+                                value={motDePasse}
+                                onChange={(e) => setMotDePasse(e.target.value)}
+                                placeholder="Mot de passe"
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setPwVisible((v) => !v)}
+                                className="absolute inset-y-0 right-1 flex items-center justify-center w-8 rounded-lg hover:bg-slate-100"
+                            >
+                                {pwVisible ? <RiEyeOffFill className="h-5 w-5" /> : <RiEyeFill className="h-5 w-5" />}
+                            </button>
+                        </div>
                         <button onClick={doLogin} disabled={busy || !cfg?.serverUrl} className="self-start px-4 py-2 bg-emerald-600 text-white text-sm rounded-full disabled:opacity-50">
                             Se connecter
                         </button>
@@ -1529,6 +1566,76 @@ function SauvegardeSection() {
                     >
                         Importer une sauvegarde
                     </button>
+                </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl bg-white p-5 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-semibold">Mises à jour</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Vérifiez et installez la dernière version publiée sur GitHub.</p>
+                    </div>
+                    {updateStatus?.available && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                            Nouvelle version disponible
+                        </span>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="bg-slate-50 rounded-xl px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Version actuelle</p>
+                        <p className="mt-1 font-mono text-[11px] text-gray-700">{updateStatus?.currentVersion || '—'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Dernière version GitHub</p>
+                        <p className="mt-1 font-mono text-[11px] text-gray-700">{updateStatus?.version || '—'}</p>
+                    </div>
+                </div>
+
+                {updateStatus?.downloading && (
+                    <div className="flex flex-col gap-1">
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-slate-800 transition-all"
+                                style={{ width: `${updateStatus.progress}%` }}
+                            />
+                        </div>
+                        <p className="text-[11px] text-gray-500">Téléchargement… {updateStatus.progress}%</p>
+                    </div>
+                )}
+
+                {updateStatus?.error && (
+                    <p className="text-xs text-red-600">{updateStatus.error}</p>
+                )}
+
+                <div className="flex gap-2">
+                    {updateStatus?.downloaded ? (
+                        <button
+                            onClick={handleInstallUpdate}
+                            className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-full hover:bg-emerald-700"
+                        >
+                            Installer et redémarrer
+                        </button>
+                    ) : updateStatus?.available ? (
+                        <button
+                            onClick={handleDownloadUpdate}
+                            disabled={updateStatus?.downloading}
+                            className="px-4 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {updateStatus?.downloading ? <SvgSpinners180Ring className="h-4 w-4" /> : null}
+                            Télécharger la mise à jour {updateStatus.version}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleCheckUpdate}
+                            disabled={updateStatus?.checking}
+                            className="px-4 py-2 bg-slate-800 text-white text-sm rounded-full hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {updateStatus?.checking ? <SvgSpinners180Ring className="h-4 w-4" /> : null}
+                            Vérifier les mises à jour
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

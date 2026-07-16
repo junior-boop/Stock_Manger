@@ -109,7 +109,11 @@ export default function DevisDetailPage() {
                 if (!a) return undefined;
                 return [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || undefined;
             };
-            const html = buildDevisHTML(current, client, adminLookup);
+            const companyInfo = await window.db.entreprises.get();
+            if (!companyInfo || !companyInfo.setupDone) {
+                throw new Error("Informations de l'entreprise manquantes. Complétez-les dans Paramètres avant de générer un PDF.");
+            }
+            const html = buildDevisHTML(current, client, companyInfo, adminLookup);
             const filePath = await window.pdf.generateDevis(html, current.numero);
             await window.shell.openPath(filePath);
             success('PDF généré', current.numero);

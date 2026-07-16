@@ -10,7 +10,7 @@ type CustomField = {
     value: string;
 };
 
-type CompanyPdfInfo = {
+export type CompanyPdfInfo = {
     nom: string;
     adresse: string;
     telephone: string;
@@ -23,27 +23,10 @@ type CompanyPdfInfo = {
     customFields: CustomField[];
 };
 
-let COMPANY: CompanyPdfInfo = {
-    nom: 'Kataleya',
-    adresse: 'Douala, Cameroun',
-    telephone: '+237 6XX XX XX XX',
-    email: 'contact@kataleya.com',
-    logoDataUrl: '',
-    matricule: '',
-    notesDevis: '',
-    notesFacture: '',
-    conditionsPaiement: '',
-    customFields: [],
-};
-
-export function setFactureCompanyInfo(info: Partial<CompanyPdfInfo>) {
-    COMPANY = { ...COMPANY, ...info };
-}
-
 const escIt = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-function renderCustomFields(): string {
-    if (!COMPANY.customFields?.length) return '';
-    return COMPANY.customFields
+function renderCustomFields(customFields: CustomField[]): string {
+    if (!customFields?.length) return '';
+    return customFields
         .filter((f) => f.value?.trim())
         .map((f) => {
             const lbl = f.label?.trim() ? `${escIt(f.label)} : ` : '';
@@ -51,15 +34,15 @@ function renderCustomFields(): string {
         })
         .join('');
 }
-function renderCustomFieldValues(): string {
-    if (!COMPANY.customFields?.length) return '';
-    return COMPANY.customFields
+function renderCustomFieldValues(customFields: CustomField[]): string {
+    if (!customFields?.length) return '';
+    return customFields
         .filter((f) => f.value?.trim())
         .map((f) => `<div>${escIt(f.value)}</div>`)
         .join('');
 }
 
-export function buildFactureWhatsAppMessage(facture: Facture, client: Client | undefined): string {
+export function buildFactureWhatsAppMessage(facture: Facture, client: Client | undefined, company: CompanyPdfInfo): string {
     const name = client
         ? (client.type === 'entreprise' ? (client.raisonSociale || client.nom) : client.nom)
         : '';
@@ -74,7 +57,7 @@ export function buildFactureWhatsAppMessage(facture: Facture, client: Client | u
         lignes.push(`Reste à payer : ${formatFCFA(restant)}.`);
     }
     lignes.push(`Échéance : ${formatDate(facture.dateEcheance)}.`);
-    lignes.push('', 'Cordialement,', COMPANY.nom);
+    lignes.push('', 'Cordialement,', company.nom);
     return lignes.join('\n');
 }
 
@@ -177,6 +160,7 @@ export function buildRecuPaiementHTML(
     client: Client | undefined,
     paiement: Paiement,
     numeroRecu: string,
+    company: CompanyPdfInfo,
     adminLookup?: AdminLookup,
 ): string {
     const receveurName = adminLookup?.(paiement.enregistréPar);
@@ -195,7 +179,7 @@ export function buildRecuPaiementHTML(
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(COMPANY.nom)} | ${esc(numeroRecu)}${COMPANY.telephone ? ` | ${esc(COMPANY.telephone)}` : ''}${COMPANY.matricule ? ` | ${esc(COMPANY.matricule)}` : ''}</title>
+<title>${esc(company.nom)} | ${esc(numeroRecu)}${company.telephone ? ` | ${esc(company.telephone)}` : ''}${company.matricule ? ` | ${esc(company.matricule)}` : ''}</title>
 <style>
     @page { margin: 15mm 15mm 5mm 15mm; }
     * { box-sizing: border-box; }
@@ -237,11 +221,11 @@ export function buildRecuPaiementHTML(
     <div class="header">
        <div style="display:flex;align-items:center;gap:14px;">
             <div>
-                ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(COMPANY.nom)}</div>`}
+                ${company.logoDataUrl ? `<img src="${company.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(company.nom)}</div>`}
                 <div class="company-info">
-                    ${esc(COMPANY.adresse)}<br/>
-                    ${esc(COMPANY.telephone)}<br/>${esc(COMPANY.email)}
-                    ${renderCustomFields()}
+                    ${esc(company.adresse)}<br/>
+                    ${esc(company.telephone)}<br/>${esc(company.email)}
+                    ${renderCustomFields(company.customFields)}
                 </div>
             </div>
         </div>
@@ -321,7 +305,7 @@ export function buildRecuPaiementHTML(
 </html>`;
 }
 
-export function buildFactureHTML(facture: Facture, client: Client | undefined, adminLookup?: AdminLookup): string {
+export function buildFactureHTML(facture: Facture, client: Client | undefined, company: CompanyPdfInfo, adminLookup?: AdminLookup): string {
     const remiseAmount = facture.totalTTC - facture.totalApreRemise;
     const creatorName = adminLookup?.(facture.createdBy);
     const montantPayé = facture.montantPayé ?? 0;
@@ -333,7 +317,7 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(COMPANY.nom)} | ${esc(facture.numero)}${COMPANY.telephone ? ` | ${esc(COMPANY.telephone)}` : ''}${COMPANY.matricule ? ` | ${esc(COMPANY.matricule)}` : ''}</title>
+<title>${esc(company.nom)} | ${esc(facture.numero)}${company.telephone ? ` | ${esc(company.telephone)}` : ''}${company.matricule ? ` | ${esc(company.matricule)}` : ''}</title>
 <style>
     @page { margin: 15mm 15mm 5mm 15mm; }
     * { box-sizing: border-box; }
@@ -394,11 +378,11 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
     <div class="header">
          <div style="display:flex;align-items:center;gap:14px;">
             <div>
-                ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(COMPANY.nom)}</div>`}
+                ${company.logoDataUrl ? `<img src="${company.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(company.nom)}</div>`}
                 <div class="company-info">
-                    ${esc(COMPANY.adresse)}<br/>
-                    ${esc(COMPANY.telephone)}<br/>${esc(COMPANY.email)}
-                    ${renderCustomFields()}
+                    ${esc(company.adresse)}<br/>
+                    ${esc(company.telephone)}<br/>${esc(company.email)}
+                    ${renderCustomFields(company.customFields)}
                 </div>
             </div>
         </div>
@@ -446,40 +430,29 @@ export function buildFactureHTML(facture: Facture, client: Client | undefined, a
 
     ${renderPaiements(facture, adminLookup)}
 
-    ${(facture.notes || COMPANY.notesFacture) || (facture.conditionsPaiement || COMPANY.conditionsPaiement) || renderCustomFieldValues() ? `
+    ${(facture.notes || company.notesFacture) || (facture.conditionsPaiement || company.conditionsPaiement) || renderCustomFieldValues(company.customFields) ? `
         <div class="footer">
-            ${(facture.conditionsPaiement || COMPANY.conditionsPaiement) ? `
+            ${(facture.conditionsPaiement || company.conditionsPaiement) ? `
                 <div class="footer-section">
                     <div class="label">Conditions de paiement</div>
-                    <div>${esc(facture.conditionsPaiement || COMPANY.conditionsPaiement)}</div>
+                    <div>${esc(facture.conditionsPaiement || company.conditionsPaiement)}</div>
                 </div>
             ` : ''}
-            ${(facture.notes || COMPANY.notesFacture) ? `
+            ${(facture.notes || company.notesFacture) ? `
                 <div class="footer-section">
                     <div class="label">Notes</div>
-                    <div>${esc(facture.notes || COMPANY.notesFacture)}</div>
+                    <div>${esc(facture.notes || company.notesFacture)}</div>
                 </div>
             ` : ''}
-            ${renderCustomFieldValues() ? `
+            ${renderCustomFieldValues(company.customFields) ? `
                 <div class="footer-section">
                     <div class="label">Informations complémentaires</div>
-                    ${renderCustomFieldValues()}
+                    ${renderCustomFieldValues(company.customFields)}
                 </div>
             ` : ''}
         </div>
     ` : ''}
-    
+
 </body>
 </html>`;
 }
-
-
-// <div class="fixed-footer">
-//         <div class="fi-left">
-//             ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:24px;max-width:70px;object-fit:contain;" />` : ''}
-//             <div>
-//                 <div class="fi-name">${esc(COMPANY.nom)}</div>
-//                 <div>${esc(COMPANY.adresse)}${COMPANY.telephone ? ` · ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` · ${esc(COMPANY.email)}` : ''}</div>
-//             </div>
-//         </div>
-//     </div>

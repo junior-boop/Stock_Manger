@@ -1648,9 +1648,10 @@ const createEntrepriseTable = async () => {
 
 function parseEntreprise(row: any): Entreprise | null {
   if (!row) return null;
+  const setupDone = row.setupDone === 1 || row.setupDone === true || !!String(row.nom ?? '').trim();
   return {
     ...row,
-    setupDone: row.setupDone === 1 || row.setupDone === true,
+    setupDone,
     afficherTVA: row.afficherTVA === 1 || row.afficherTVA === true,
     customFields: typeof row.customFields === 'string'
       ? JSON.parse(row.customFields || '[]')

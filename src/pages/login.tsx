@@ -53,6 +53,7 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
                         className="h-11 px-4 bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:border-slate-400"
                     />
                     <button
+                        type="button"
                         onClick={() => setIsVisible(!isVisible)}
                         className='absolute bottom-1 right-1 h-9 aspect-square rounded-full hover:bg-blue-300 flex items-center justify-center'>
                         {

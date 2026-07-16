@@ -659,6 +659,7 @@ ipcMain.handle('entreprises:update', async (_event, data) => {
     const row = await updateEntreprise(data);
     console.log("[main.ts] - entreprises:update", data)
     if (fs.existsSync(companyInfoPath)) {
+      console.log(companyInfoPath)
       fs.unlinkSync(companyInfoPath);
     }
     if (row) {
@@ -980,7 +981,7 @@ const createWindow = () => {
   // Create the browser window.
   const isMac = process.platform === 'darwin';
   const mainWindow = new BrowserWindow({
-    width: 1920,
+    width: isMac ? 1680 : 1920,
     height: 1020,
     frame: isMac ? true : false,
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',

@@ -1,6 +1,6 @@
 import { Client, Devis, LigneDocument } from '../Databases/db.d';
 import { formatDate, formatFCFA, numberToWordsFr } from './format';
-import type { AdminLookup } from './facture_pdf';
+import type { AdminLookup, CompanyPdfInfo } from './facture_pdf';
 
 type CustomField = {
     id: string;
@@ -9,39 +9,9 @@ type CustomField = {
     value: string;
 };
 
-type CompanyPdfInfo = {
-    nom: string;
-    adresse: string;
-    telephone: string;
-    matricule : string;
-    email: string;
-    logoDataUrl: string;
-    notesDevis: string;
-    notesFacture: string;
-    conditionsPaiement: string;
-    customFields: CustomField[];
-};
-
-let COMPANY: CompanyPdfInfo = {
-    nom: 'Kataleya',
-    adresse: 'Douala, Cameroun',
-    telephone: '+237 6XX XX XX XX',
-    email: 'contact@kataleya.com',
-    logoDataUrl: '',
-    matricule: '',
-    notesDevis: '',
-    notesFacture: '',
-    conditionsPaiement: '',
-    customFields: [],
-};
-
-export function setDevisCompanyInfo(info: Partial<CompanyPdfInfo>) {
-    COMPANY = { ...COMPANY, ...info };
-}
-
-function renderCustomFields(): string {
-    if (!COMPANY.customFields?.length) return '';
-    return COMPANY.customFields
+function renderCustomFields(customFields: CustomField[]): string {
+    if (!customFields?.length) return '';
+    return customFields
         .filter((f) => f.value?.trim())
         .map((f) => {
             const lbl = f.label?.trim() ? `${escLocal(f.label)} : ` : '';
@@ -49,9 +19,9 @@ function renderCustomFields(): string {
         })
         .join('');
 }
-function renderCustomFieldValues(): string {
-    if (!COMPANY.customFields?.length) return '';
-    return COMPANY.customFields
+function renderCustomFieldValues(customFields: CustomField[]): string {
+    if (!customFields?.length) return '';
+    return customFields
         .filter((f) => f.value?.trim())
         .map((f) => `<div>${escLocal(f.value)}</div>`)
         .join('');
@@ -158,18 +128,18 @@ function renderGroupedLignes(devis: Devis, showTVA: boolean): string {
     return blocks.join('');
 }
 
-export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLookup?: AdminLookup): string {
+export function buildDevisHTML(devis: Devis, client: Client | undefined, company: CompanyPdfInfo, adminLookup?: AdminLookup): string {
     const remiseAmount = devis.totalTTC - devis.totalApreRemise;
     const creatorName = adminLookup?.(devis.createdBy);
-    const conditionsPaiement = devis.conditionsPaiement || COMPANY.conditionsPaiement;
-    const notes = devis.notes || COMPANY.notesDevis;
+    const conditionsPaiement = devis.conditionsPaiement || company.conditionsPaiement;
+    const notes = devis.notes || company.notesDevis;
     const showTVA = devis.afficherTVA !== false;
     const showTVALignes = showTVA && devis.afficherTVALignes !== false;
     return `<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<title>${esc(COMPANY.nom)} | ${COMPANY.telephone ? `${esc(COMPANY.telephone)}` : ''}${` | ${COMPANY.matricule}`}</title>
+<title>${esc(company.nom)} | ${company.telephone ? `${esc(company.telephone)}` : ''}${` | ${company.matricule}`}</title>
 <style>
     @page { margin: 10mm 10mm 10mm 10mm; }
 
@@ -229,11 +199,11 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
     <div class="header">
         <div style="display:flex;align-items:center;gap:14px;">
             <div>
-                ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(COMPANY.nom)}</div>`}
+                ${company.logoDataUrl ? `<img src="${company.logoDataUrl}" style="max-height:30px;max-width:140px;object-fit:contain;" />` : `<div class="company-name">${esc(company.nom)}</div>`}
                 <div class="company-info">
-                    ${esc(COMPANY.adresse)}<br/>
-                    ${esc(COMPANY.telephone)}<br/>${esc(COMPANY.email)}
-                    ${renderCustomFields()}
+                    ${esc(company.adresse)}<br/>
+                    ${esc(company.telephone)}<br/>${esc(company.email)}
+                    ${renderCustomFields(company.customFields)}
                 </div>
             </div>
         </div>
@@ -274,7 +244,7 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
         (${esc(formatFCFA(devis.totalApreRemise))}) toutes taxes comprises.
     </div>
 
-    ${notes || conditionsPaiement || renderCustomFieldValues() ? `
+    ${notes || conditionsPaiement || renderCustomFieldValues(company.customFields) ? `
         <div class="footer">
             ${conditionsPaiement ? `
                 <div class="footer-section">
@@ -288,31 +258,15 @@ export function buildDevisHTML(devis: Devis, client: Client | undefined, adminLo
                     <div>${esc(notes)}</div>
                 </div>
             ` : ''}
-           
+
         </div>
     ` : ''}
-    
+
 </body>
 </html>`;
 }
 
-// <div class="fixed-footer">
-//         <div class="fi-left">
-//             ${COMPANY.logoDataUrl ? `<img src="${COMPANY.logoDataUrl}" style="max-height:24px;max-width:70px;object-fit:contain;" />` : ''}
-//             <div>
-//                 <div class="fi-name">${esc(COMPANY.nom)}</div>
-//                 <div>${esc(COMPANY.adresse)}${COMPANY.telephone ? ` · ${esc(COMPANY.telephone)}` : ''}${COMPANY.email ? ` · ${esc(COMPANY.email)}` : ''}</div>
-//             </div>
-//         </div>
-//     </div>
-//  ${renderCustomFieldValues() ? `
-//                 <div class="footer-section">
-//                     <div class="label">Informations complémentaires</div>
-//                     ${renderCustomFieldValues()}
-//                 </div>
-//             ` : ''}
-
-export function buildWhatsAppMessage(devis: Devis, client: Client | undefined): string {
+export function buildWhatsAppMessage(devis: Devis, client: Client | undefined, company: CompanyPdfInfo): string {
     const name = client
         ? (client.type === 'entreprise' ? (client.raisonSociale || client.nom) : client.nom)
         : '';
@@ -324,7 +278,7 @@ export function buildWhatsAppMessage(devis: Devis, client: Client | undefined): 
         `Il est valide jusqu'au ${formatDate(devis.dateValidite)}.`,
         '',
         'Cordialement,',
-        COMPANY.nom,
+        company.nom,
     ].join('\n');
 }
 

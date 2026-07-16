@@ -35,8 +35,6 @@ import { AlertsProvider, useAlerts } from '../components/alerts';
 import { SyncRevisionProvider } from '../context/sync_revision';
 import { useDatabase } from '../databaseProvider';
 import { useEffect, useRef, useState } from 'react';
-import { setDevisCompanyInfo } from '../libs/devis_pdf';
-import { setFactureCompanyInfo } from '../libs/facture_pdf';
 import { SvgSpinners180RingWithBg } from '../libs/icons';
 
 const Router = () => {
@@ -205,12 +203,6 @@ function InventoryWatcher() {
 }
 
 export default function App() {
-    useEffect(() => {
-        window.db.entreprises?.get().then((info) => {
-            setDevisCompanyInfo(info);
-            setFactureCompanyInfo(info);
-        }).catch(() => { /* defaults kept */ });
-    }, []);
     return (
         <AlertsProvider>
             <AuthProvider>

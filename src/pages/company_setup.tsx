@@ -1,7 +1,5 @@
 import { useRef, useState } from 'react';
 import { useAlerts } from '../components/alerts';
-import { setDevisCompanyInfo } from '../libs/devis_pdf';
-import { setFactureCompanyInfo } from '../libs/facture_pdf';
 import { SvgSpinners180Ring } from '../libs/icons';
 
 export default function CompanySetupPage({ onDone }: { onDone: () => void }) {
@@ -30,9 +28,7 @@ export default function CompanySetupPage({ onDone }: { onDone: () => void }) {
         }
         setSaving(true);
         try {
-            const next = await window.db.entreprises.update({ nom: nom.trim(), logoDataUrl, setupDone: true });
-            setDevisCompanyInfo(next);
-            setFactureCompanyInfo(next);
+            await window.db.entreprises.update({ nom: nom.trim(), logoDataUrl, setupDone: true });
             window.dispatchEvent(new Event('company:changed'));
             success('Bienvenue', `Espace ${nom.trim()} configuré.`);
             onDone();

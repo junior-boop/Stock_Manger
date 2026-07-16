@@ -32,6 +32,14 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
     const { administrateurs } = useDatabase();
     const [busy, setBusy] = useState<Mode>(null);
 
+    const getCompanyInfoOrThrow = async () => {
+        const info = await window.db.entreprises.get();
+        if (!info || !info.setupDone) {
+            throw new Error("Informations de l'entreprise manquantes. Complétez-les dans Paramètres avant de générer un PDF.");
+        }
+        return info;
+    };
+
     const generatePdf = async (): Promise<string> => {
         const adminLookup = (id?: string | null): string | undefined => {
             if (!id) return undefined;
@@ -39,7 +47,8 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
             if (!a) return undefined;
             return [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || undefined;
         };
-        const html = buildDevisHTML(devis, client, adminLookup);
+        const companyInfo = await getCompanyInfoOrThrow();
+        const html = buildDevisHTML(devis, client, companyInfo, adminLookup);
         return await window.pdf.generateDevis(html, devis.numero);
     };
 
@@ -66,9 +75,10 @@ export default function DevisSendModal({ devis, client, onClose, onSent }: Props
         }
         setBusy('whatsapp');
         try {
+            const companyInfo = await getCompanyInfoOrThrow();
             const filePath = await generatePdf();
             await window.shell.showItemInFolder(filePath);
-            const msg = encodeURIComponent(buildWhatsAppMessage(devis, client));
+            const msg = encodeURIComponent(buildWhatsAppMessage(devis, client, companyInfo));
             await window.shell.openExternal(`https://wa.me/${phone}?text=${msg}`);
             await onSent('whatsapp');
             success('WhatsApp ouvert', 'Attache le PDF depuis le dossier ouvert.');

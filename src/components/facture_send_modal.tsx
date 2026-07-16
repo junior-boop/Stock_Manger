@@ -19,6 +19,14 @@ export default function FactureSendModal({ facture, client, onClose, onMarkEmise
     const { administrateurs } = useDatabase();
     const [busy, setBusy] = useState<Mode>(null);
 
+    const getCompanyInfoOrThrow = async () => {
+        const info = await window.db.entreprises.get();
+        if (!info || !info.setupDone) {
+            throw new Error("Informations de l'entreprise manquantes. Complétez-les dans Paramètres avant de générer un PDF.");
+        }
+        return info;
+    };
+
     const generatePdf = async (): Promise<string> => {
         const adminLookup = (id?: string | null): string | undefined => {
             if (!id) return undefined;
@@ -26,7 +34,8 @@ export default function FactureSendModal({ facture, client, onClose, onMarkEmise
             if (!a) return undefined;
             return [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || undefined;
         };
-        const html = buildFactureHTML(facture, client, adminLookup);
+        const companyInfo = await getCompanyInfoOrThrow();
+        const html = buildFactureHTML(facture, client, companyInfo, adminLookup);
         return await window.pdf.generateFacture(html, facture.numero);
     };
 
@@ -52,9 +61,10 @@ export default function FactureSendModal({ facture, client, onClose, onMarkEmise
         }
         setBusy('whatsapp');
         try {
+            const companyInfo = await getCompanyInfoOrThrow();
             const filePath = await generatePdf();
             await window.shell.showItemInFolder(filePath);
-            const msg = encodeURIComponent(buildFactureWhatsAppMessage(facture, client));
+            const msg = encodeURIComponent(buildFactureWhatsAppMessage(facture, client, companyInfo));
             await window.shell.openExternal(`https://wa.me/${phone}?text=${msg}`);
             success('WhatsApp ouvert', 'Attache le PDF depuis le dossier ouvert.');
             onClose();

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/authProvider';
 import logo from '../assets/Kataleya.png';
+import { RiEyeFill, RiEyeOffFill } from '../libs/icons';
 
 type Mode = 'choose' | 'solo' | 'link-server' | 'online-login';
 type ServerReachability = 'idle' | 'checking' | 'ok' | 'fail';
@@ -319,16 +320,27 @@ function Field({
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     placeholder?: string;
 }) {
+    const [visible, setVisible] = useState(false);
+    const isPassword = type === 'password';
     return (
-        <label className="flex flex-col gap-1">
+        <label className="relative flex flex-col gap-1">
             <span className="text-sm text-gray-600">{label}</span>
             <input
-                type={type}
+                type={isPassword && visible ? 'text' : type}
                 value={value}
                 onChange={onChange}
                 placeholder={placeholder}
                 className="h-11 px-4 bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:border-slate-400"
             />
+            {isPassword && (
+                <button
+                    type="button"
+                    onClick={() => setVisible((v) => !v)}
+                    className="absolute bottom-1 right-1 h-9 aspect-square rounded-full hover:bg-blue-300 flex items-center justify-center"
+                >
+                    {visible ? <RiEyeOffFill className="h-6 w-6" /> : <RiEyeFill className="h-6 w-6" />}
+                </button>
+            )}
         </label>
     );
 }
