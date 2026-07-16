@@ -1392,6 +1392,20 @@ function SauvegardeSection() {
         return unsub;
     }, []);
 
+    const wasCheckingRef = useRef(false);
+    useEffect(() => {
+        if (wasCheckingRef.current && !updateStatus?.checking) {
+            if (updateStatus?.error) {
+                notifyError('Mise à jour', updateStatus.error);
+            } else if (updateStatus?.available) {
+                notifySuccess('Mise à jour', `Nouvelle version disponible : ${updateStatus.version}`);
+            } else {
+                notifySuccess('Mise à jour', 'Vous utilisez déjà la dernière version.');
+            }
+        }
+        wasCheckingRef.current = !!updateStatus?.checking;
+    }, [updateStatus?.checking]);
+
     const handleCheckUpdate = async () => {
         try {
             await window.updateApi.check();
@@ -1589,9 +1603,17 @@ function SauvegardeSection() {
                     </div>
                     <div className="bg-slate-50 rounded-xl px-4 py-3">
                         <p className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Dernière version GitHub</p>
-                        <p className="mt-1 font-mono text-[11px] text-gray-700">{updateStatus?.version || '—'}</p>
+                        <p className="mt-1 font-mono text-[11px] text-gray-700">{updateStatus?.version || updateStatus?.currentVersion || '—'}</p>
                     </div>
                 </div>
+
+                <p className="text-[11px] text-gray-400">
+                    {updateStatus?.checking
+                        ? 'Vérification en cours…'
+                        : updateStatus?.lastChecked
+                            ? `Dernière vérification : ${new Date(updateStatus.lastChecked).toLocaleString('fr-FR')}`
+                            : 'Aucune vérification effectuée pour le moment.'}
+                </p>
 
                 {updateStatus?.downloading && (
                     <div className="flex flex-col gap-1">

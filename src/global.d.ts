@@ -101,6 +101,7 @@ interface UpdateStatus {
   currentVersion: string;
   error: string | null;
   progress: number;
+  lastChecked: number | null;
 }
 
 type AdminRole = 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur';

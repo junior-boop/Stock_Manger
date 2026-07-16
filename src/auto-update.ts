@@ -12,6 +12,7 @@ export type UpdateStatus = {
   currentVersion: string;
   error: string | null;
   progress: number;
+  lastChecked: number | null;
 };
 
 type StatusListener = (s: UpdateStatus) => void;
@@ -51,6 +52,7 @@ export class AutoUpdateService {
     currentVersion: app.getVersion(),
     error: null,
     progress: 0,
+    lastChecked: null,
   };
   private listeners = new Set<StatusListener>();
   private userDataPath: string;
@@ -119,10 +121,12 @@ export class AutoUpdateService {
         this.status.version = null;
       }
       this.status.checking = false;
+      this.status.lastChecked = Date.now();
       this.emit();
     } catch (e) {
       this.status.checking = false;
       this.status.error = e instanceof Error ? e.message : String(e);
+      this.status.lastChecked = Date.now();
       this.emit();
     }
   }
@@ -192,7 +196,7 @@ export class AutoUpdateService {
       .sort()
       .reverse();
 
-    if (updates.length > 0) {
+    if (updates[0]) {
       const installer = path.join(this.downloadDir, updates[0]);
       execFile(installer, [], (err) => {
         if (err) console.error("[auto-update] install failed", err);
