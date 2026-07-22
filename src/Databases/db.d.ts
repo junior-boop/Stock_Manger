@@ -41,7 +41,7 @@ export interface Adresse {
 //  ADMINISTRATEUR
 // ─────────────────────────────────────────────
 
-export type RoleAdmin = 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur'
+export type RoleAdmin = 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur' | 'demo'
 
 export interface Administrateur {
   id          : ID

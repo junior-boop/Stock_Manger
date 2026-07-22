@@ -104,7 +104,7 @@ interface UpdateStatus {
   lastChecked: number | null;
 }
 
-type AdminRole = 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur';
+type AdminRole = 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur' | 'demo';
 type AdminStatut = 'actif' | 'inactif' | 'archivé';
 
 interface SetupData {
@@ -216,6 +216,7 @@ interface DbApi {
 interface AuthApi {
   isSetupDone: () => Promise<boolean>;
   setup: (data: SetupData) => Promise<AuthResult>;
+  setupDemo: (data: { nom: string; prenom: string; motDePasse: string }) => Promise<AuthResult>;
   login: (email: string, motDePasse: string) => Promise<AuthResult>;
   logout: () => Promise<boolean>;
   me: () => Promise<any | null>;

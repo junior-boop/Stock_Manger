@@ -89,6 +89,42 @@ export async function setupFirstAdmin(data: {
   return { ok: true, user: safe };
 }
 
+const DEMO_EMAIL = 'demo.local@kataleya.app';
+
+export async function setupDemoAccount(data: {
+  nom: string;
+  prenom: string;
+  motDePasse: string;
+}): Promise<{ ok: boolean; error?: string; user?: SessionUser }> {
+  if (await isSetupDone()) {
+    return { ok: false, error: 'Configuration déjà effectuée' };
+  }
+  if (!data.nom || !data.prenom || !data.motDePasse) {
+    return { ok: false, error: 'Nom, prénom et mot de passe requis' };
+  }
+  if (data.motDePasse.length < 6) {
+    return { ok: false, error: 'Mot de passe trop court (minimum 6 caractères)' };
+  }
+
+  const motDePasseHash = hashPassword(data.motDePasse);
+  const created = await createAdministrateur({
+    nom: data.nom,
+    prenom: data.prenom,
+    email: DEMO_EMAIL,
+    role: 'demo',
+    motDePasseHash,
+    avatar: undefined,
+    statut: 'actif',
+    derniereConnexion: new Date().toISOString(),
+  } as Omit<Administrateur, 'id' | 'createdAt' | 'updatedAt'>);
+
+  if (!created) return { ok: false, error: 'Erreur lors de la création' };
+
+  const safe = stripHash(created as Administrateur);
+  currentUser = safe;
+  return { ok: true, user: safe };
+}
+
 export async function login(
   email: string,
   motDePasse: string,
@@ -121,30 +157,30 @@ const PERMISSIONS: Record<string, RoleAdmin[]> = {
   // Admins / utilisateurs
   'admins:manage': ['super_admin'],
   // Paramètres entreprise
-  'parametres:edit': ['super_admin', 'admin'],
+  'parametres:edit': ['super_admin', 'admin', 'demo'],
   // Articles & collections
-  'articles:write': ['super_admin', 'admin', 'gestionnaire'],
-  'articles:delete': ['super_admin', 'admin'],
-  'collections:write': ['super_admin', 'admin', 'gestionnaire'],
-  'collections:delete': ['super_admin', 'admin'],
+  'articles:write': ['super_admin', 'admin', 'gestionnaire', 'demo'],
+  'articles:delete': ['super_admin', 'admin', 'demo'],
+  'collections:write': ['super_admin', 'admin', 'gestionnaire', 'demo'],
+  'collections:delete': ['super_admin', 'admin', 'demo'],
   // Clients
-  'clients:write': ['super_admin', 'admin', 'gestionnaire', 'vendeur'],
-  'clients:delete': ['super_admin', 'admin'],
+  'clients:write': ['super_admin', 'admin', 'gestionnaire', 'vendeur', 'demo'],
+  'clients:delete': ['super_admin', 'admin', 'demo'],
   // Devis
-  'devis:create': ['super_admin', 'admin', 'gestionnaire', 'vendeur'],
-  'devis:modify': ['super_admin', 'admin'],
-  'devis:delete': ['super_admin', 'admin'],
+  'devis:create': ['super_admin', 'admin', 'gestionnaire', 'vendeur', 'demo'],
+  'devis:modify': ['super_admin', 'admin', 'demo'],
+  'devis:delete': ['super_admin', 'admin', 'demo'],
   // Factures
-  'factures:create': ['super_admin', 'admin', 'gestionnaire'],
-  'factures:modify': ['super_admin', 'admin'],
-  'factures:delete': ['super_admin', 'admin'],
+  'factures:create': ['super_admin', 'admin', 'gestionnaire', 'demo'],
+  'factures:modify': ['super_admin', 'admin', 'demo'],
+  'factures:delete': ['super_admin', 'admin', 'demo'],
   // Paiements
-  'paiements:write': ['super_admin', 'admin', 'gestionnaire'],
+  'paiements:write': ['super_admin', 'admin', 'gestionnaire', 'demo'],
   // Journal d'audit
-  'journal:read': ['super_admin', 'admin'],
+  'journal:read': ['super_admin', 'admin', 'demo'],
   // Demandes de modification
   'demandes:create': ['gestionnaire', 'vendeur'],
-  'demandes:validate': ['super_admin', 'admin'],
+  'demandes:validate': ['super_admin', 'admin', 'demo'],
 };
 
 export function hasPermission(action: string, user: SessionUser | null = currentUser): boolean {

@@ -951,6 +951,12 @@ export class SyncClient {
     //        et émission `sync:server-overwrite` pour le toast UI.
     // Erreurs réseau → on laisse dirty=1, retry au prochain tick.
     private async pushDirty() {
+        const me = await window.auth.me().catch(() => null);
+        if (me?.role === 'demo') {
+            console.info(`${TAG} push ignoré — compte démo, envoi en ligne désactivé`);
+            await this.refreshPending();
+            return;
+        }
         const dirty = await window.syncApi.syncState.getDirty();
         if (dirty.length === 0) {
             this.status.pending = 0;

@@ -430,6 +430,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             return result;
         } catch (error) {
             handleError(error, 'creating devis');
+            throw error;
         }
     }, [refreshDevis]);
 
@@ -461,6 +462,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             return result;
         } catch (error) {
             handleError(error, 'creating facture');
+            throw error;
         }
     }, [refreshFactures]);
 

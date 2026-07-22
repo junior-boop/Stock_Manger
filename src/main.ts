@@ -119,6 +119,7 @@ import {
 import {
   isSetupDone,
   setupFirstAdmin,
+  setupDemoAccount,
   login as authLogin,
   logout as authLogout,
   getCurrentUser,
@@ -136,6 +137,7 @@ if (started) {
 // ======================== IPC HANDLERS - AUTH ========================
 ipcMain.handle('auth:isSetupDone', async () => isSetupDone());
 ipcMain.handle('auth:setup', async (_event, data) => setupFirstAdmin(data));
+ipcMain.handle('auth:setupDemo', async (_event, data) => setupDemoAccount(data));
 ipcMain.handle('auth:login', async (_event, email: string, motDePasse: string) => {
   const res = await authLogin(email, motDePasse);
   if (res?.ok) {

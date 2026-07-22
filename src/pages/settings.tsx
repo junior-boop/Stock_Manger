@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDatabase } from '../databaseProvider';
 import { Administrateur, RoleAdmin, Technicien } from '../Databases/db.d';
+import type { UpdateStatus } from '../auto-update';
 import { useAuth, usePermissions } from '../auth/authProvider';
 import { syncClient } from '../context/sync_client';
 import { useAlerts } from '../components/alerts';
@@ -132,6 +133,7 @@ const ROLES: { value: RoleAdmin; label: string }[] = [
     { value: 'admin', label: 'Admin' },
     { value: 'gestionnaire', label: 'Gestionnaire' },
     { value: 'vendeur', label: 'Vendeur' },
+    { value: 'demo', label: 'Démo' },
 ];
 
 type UserFormState = {
@@ -1049,36 +1051,36 @@ const PERMISSION_GROUPS: { group: string; actions: { key: string; label: string;
     {
         group: 'Articles & catalogue',
         actions: [
-            { key: 'articles.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
-            { key: 'articles.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false } },
-            { key: 'articles.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false } },
-            { key: 'articles.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+            { key: 'articles.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true, demo: true } },
+            { key: 'articles.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false, demo: true } },
+            { key: 'articles.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false, demo: true } },
+            { key: 'articles.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false, demo: true } },
         ],
     },
     {
         group: 'Clients',
         actions: [
-            { key: 'clients.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
-            { key: 'clients.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
-            { key: 'clients.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
-            { key: 'clients.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+            { key: 'clients.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true, demo: true } },
+            { key: 'clients.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true, demo: true } },
+            { key: 'clients.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true, demo: true } },
+            { key: 'clients.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false, demo: true } },
         ],
     },
     {
         group: 'Devis & factures',
         actions: [
-            { key: 'documents.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
-            { key: 'documents.create', label: 'Créer', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true } },
-            { key: 'documents.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false } },
-            { key: 'documents.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+            { key: 'documents.read', label: 'Consulter', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true, demo: true } },
+            { key: 'documents.create', label: 'Créer (max. 5 devis + 5 factures)', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: true, demo: true } },
+            { key: 'documents.update', label: 'Modifier', roles: { super_admin: true, admin: true, gestionnaire: true, vendeur: false, demo: true } },
+            { key: 'documents.delete', label: 'Supprimer', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false, demo: true } },
         ],
     },
     {
         group: 'Utilisateurs & paramètres',
         actions: [
-            { key: 'users.manage', label: 'Gérer les comptes', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
-            { key: 'settings.write', label: 'Modifier les paramètres', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
-            { key: 'audit.read', label: "Consulter le journal d'activité", roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false } },
+            { key: 'users.manage', label: 'Gérer les comptes', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false, demo: false } },
+            { key: 'settings.write', label: 'Modifier les paramètres', roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false, demo: true } },
+            { key: 'audit.read', label: "Consulter le journal d'activité", roles: { super_admin: true, admin: true, gestionnaire: false, vendeur: false, demo: true } },
         ],
     },
 ];

@@ -3,20 +3,22 @@ import { useAuth } from '../auth/authProvider';
 import logo from '../assets/Kataleya.png';
 import { RiEyeFill, RiEyeOffFill } from '../libs/icons';
 
-type Mode = 'choose' | 'solo' | 'link-server' | 'online-login';
+type Mode = 'choose' | 'solo' | 'demo' | 'link-server' | 'online-login';
 type ServerReachability = 'idle' | 'checking' | 'ok' | 'fail';
 
 export default function SetupPage({ onDone }: { onDone?: () => void }) {
-    const { setup, linkDevice, setupOnline, error, clearError } = useAuth();
+    const { setup, setupDemo, linkDevice, setupOnline, error, clearError } = useAuth();
     const [mode, setMode] = useState<Mode>('choose');
 
     const goSolo = () => { clearError(); setMode('solo'); };
+    const goDemo = () => { clearError(); setMode('demo'); };
     const goServer = () => { clearError(); setMode('link-server'); };
     const goChoose = () => { clearError(); setMode('choose'); };
     const onLinked = () => { clearError(); setMode('online-login'); };
 
-    if (mode === 'choose') return <ChoosePage onSolo={goSolo} onServer={goServer} />;
+    if (mode === 'choose') return <ChoosePage onSolo={goSolo} onDemo={goDemo} onServer={goServer} />;
     if (mode === 'solo') return <SoloSetup setup={setup} error={error} onBack={goChoose} />;
+    if (mode === 'demo') return <DemoSetup setupDemo={setupDemo} error={error} onBack={goChoose} />;
     if (mode === 'link-server') return <LinkServer linkDevice={linkDevice} error={error} onBack={goChoose} onDone={onLinked} />;
     return <OnlineLogin setupOnline={setupOnline} error={error} onBack={() => setMode('link-server')} onDone={onDone} />;
 }
@@ -34,7 +36,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     );
 }
 
-function ChoosePage({ onSolo, onServer }: { onSolo: () => void; onServer: () => void }) {
+function ChoosePage({ onSolo, onDemo, onServer }: { onSolo: () => void; onDemo: () => void; onServer: () => void }) {
     return (
         <Shell>
             <div>
@@ -59,6 +61,15 @@ function ChoosePage({ onSolo, onServer }: { onSolo: () => void; onServer: () => 
                 <div className="font-medium">Démarrer en local</div>
                 <div className="text-sm text-gray-500 mt-1">
                     Créez un compte super administrateur sur ce poste uniquement.
+                </div>
+            </button>
+            <button
+                onClick={onDemo}
+                className="text-left p-5 border border-slate-200 rounded-2xl hover:border-slate-400 transition"
+            >
+                <div className="font-medium">Essayer en mode démo</div>
+                <div className="text-sm text-gray-500 mt-1">
+                    Découvrez Kataleya sans adresse email, avec un accès complet limité à 5 devis et 5 factures. Pas d'envoi de données en ligne, pas de gestion d'utilisateurs.
                 </div>
             </button>
         </Shell>
@@ -137,6 +148,75 @@ function SoloSetup({
                     </button>
                     <button type="submit" disabled={submitting} className="flex-1 h-12 bg-slate-800 text-white rounded-full font-medium disabled:opacity-50">
                         {submitting ? 'Création…' : 'Créer le compte'}
+                    </button>
+                </div>
+            </form>
+        </Shell>
+    );
+}
+
+function DemoSetup({
+    setupDemo,
+    error,
+    onBack,
+}: {
+    setupDemo: ReturnType<typeof useAuth>['setupDemo'];
+    error: string | null;
+    onBack: () => void;
+}) {
+    const [form, setForm] = useState({ nom: '', prenom: '', motDePasse: '', confirm: '' });
+    const [submitting, setSubmitting] = useState(false);
+    const [localError, setLocalError] = useState<string | null>(null);
+
+    const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+        setForm((f) => ({ ...f, [k]: e.target.value }));
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLocalError(null);
+        if (!form.nom || !form.prenom || !form.motDePasse) {
+            setLocalError('Tous les champs marqués sont requis');
+            return;
+        }
+        if (form.motDePasse.length < 6) {
+            setLocalError('Le mot de passe doit faire au moins 6 caractères');
+            return;
+        }
+        if (form.motDePasse !== form.confirm) {
+            setLocalError('Les mots de passe ne correspondent pas');
+            return;
+        }
+        setSubmitting(true);
+        await setupDemo({ nom: form.nom, prenom: form.prenom, motDePasse: form.motDePasse });
+        setSubmitting(false);
+    };
+
+    return (
+        <Shell>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <div>
+                    <h1 className="text-2xl font-semibold">Mode démo</h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Créez un compte démo local, sans adresse email. Limité à 5 devis et 5 factures, sans synchronisation en ligne.
+                    </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <Field label="Prénom *" value={form.prenom} onChange={update('prenom')} />
+                    <Field label="Nom *" value={form.nom} onChange={update('nom')} />
+                </div>
+                <Field label="Mot de passe *" type="password" value={form.motDePasse} onChange={update('motDePasse')} />
+                <Field label="Confirmer le mot de passe *" type="password" value={form.confirm} onChange={update('confirm')} />
+                {(localError || error) && (
+                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        {localError || error}
+                    </div>
+                )}
+                <div className="flex gap-3 mt-2">
+                    <button type="button" onClick={onBack} className="flex-1 h-12 border border-slate-200 rounded-full font-medium">
+                        Retour
+                    </button>
+                    <button type="submit" disabled={submitting} className="flex-1 h-12 bg-slate-800 text-white rounded-full font-medium disabled:opacity-50">
+                        {submitting ? 'Création…' : 'Créer le compte démo'}
                     </button>
                 </div>
             </form>

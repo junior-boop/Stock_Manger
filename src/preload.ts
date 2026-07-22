@@ -107,6 +107,11 @@ const authApi = {
     telephone?: string;
     motDePasse: string;
   }) => ipcRenderer.invoke('auth:setup', data),
+  setupDemo: (data: {
+    nom: string;
+    prenom: string;
+    motDePasse: string;
+  }) => ipcRenderer.invoke('auth:setupDemo', data),
   login: (email: string, motDePasse: string) =>
     ipcRenderer.invoke('auth:login', email, motDePasse),
   logout: () => ipcRenderer.invoke('auth:logout'),
@@ -118,7 +123,7 @@ const authApi = {
     prenom: string;
     email: string;
     telephone?: string;
-    role: 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur';
+    role: 'super_admin' | 'admin' | 'gestionnaire' | 'vendeur' | 'demo';
     motDePasse: string;
     statut?: 'actif' | 'inactif' | 'archivé';
   }) => ipcRenderer.invoke('auth:createUser', data),

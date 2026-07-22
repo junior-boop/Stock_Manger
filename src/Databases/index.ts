@@ -29,6 +29,10 @@ import path from 'node:path';
 import { v4 as uuidv4 } from "uuid";
 import Database from "better-sqlite3";
 import { runMigrations } from "./migrations";
+import { getCurrentUser } from "./auth";
+
+const DEMO_DEVIS_LIMIT = 5;
+const DEMO_FACTURES_LIMIT = 5;
 
 const DB_FILENAME = 'notes.sqlite';
 let _dbPath: string | null = null;
@@ -595,6 +599,15 @@ export async function getDevisByClientId(clientId: string) {
 }
 
 export function createDevis(data: Omit<Devis, "id" | "createdAt" | "updatedAt">, opts?: { fromSync?: boolean }) {
+  if (!opts?.fromSync) {
+    const user = getCurrentUser();
+    if (user?.role === 'demo') {
+      const existing = Devis.findAll({ where: { createdBy: user.id } }) as unknown as Devis[] | null;
+      if (Array.isArray(existing) && existing.length >= DEMO_DEVIS_LIMIT) {
+        throw new Error(`Compte démo : limite de ${DEMO_DEVIS_LIMIT} devis atteinte.`);
+      }
+    }
+  }
   try {
     const id = uuidv4();
     const result = Devis.create({
@@ -748,6 +761,15 @@ export async function getFacturesByClientId(clientId: string) {
 }
 
 export function createFacture(data: Omit<Facture, "id" | "createdAt" | "updatedAt">, opts?: { fromSync?: boolean }) {
+  if (!opts?.fromSync) {
+    const user = getCurrentUser();
+    if (user?.role === 'demo') {
+      const existing = Factures.findAll({ where: { createdBy: user.id } }) as unknown as Facture[] | null;
+      if (Array.isArray(existing) && existing.length >= DEMO_FACTURES_LIMIT) {
+        throw new Error(`Compte démo : limite de ${DEMO_FACTURES_LIMIT} factures atteinte.`);
+      }
+    }
+  }
   try {
     const id = uuidv4();
     const result = Factures.create({
